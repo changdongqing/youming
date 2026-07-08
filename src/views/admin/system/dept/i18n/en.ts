@@ -1,0 +1,25 @@
+export default {
+	sysdept: {
+		name: 'Department Name',
+		parentId: 'Parent Department',
+		createTime: 'Create Time',
+		weight: 'Weight',
+		leaderId: 'Department Leader',
+		sortOrder: 'Sort Order',
+		rootDept: 'Root Department',
+		inputdeptNameTip: 'Please enter department name',
+		inputnameTip: 'Please enter department name',
+		inputparentIdTip: 'Please select parent department',
+		inputLeaderIdTip: 'Please enter leader',
+		inputsortOrderTip: 'Please enter sort order',
+		importTip: 'Import Department',
+		addNodeText: 'Add Department',
+		editNodeText: 'Edit Department',
+		delNodeText: 'Delete Department',
+		view: 'Tree/Table View',
+			tenantNodeErrorText: 'The system root node cannot be operated',
+		parentIdRequired: 'Parent department is required',
+		nameRequired: 'Department name is required',
+		sortOrderRequired: 'Sort order is required'
+	},
+};

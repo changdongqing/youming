@@ -1,0 +1,47 @@
+export default {
+	sysrole: {
+		index: '#',
+		roleName: 'Role Name',
+		inputRoleNameTip: 'Please enter role name',
+		permissionTip: 'Grant',
+		deleteDisabledTip: 'Role cannot be deleted',
+			mustCheckOneTip: 'Assign permission menu must be selected',
+			roleCode: 'Role Code',
+			roleDesc: 'Role Description',
+			createTime: 'Created Time',
+			please_enter_a_role_name: 'Please enter role name',
+			please_enter_the_role_Code: 'Please enter role code',
+			please_enter_the_role_description: 'Please enter role description',
+			please_select: 'Please select',
+			importRoleTip: 'Import Role',
+		assignPermission: 'Assign Permission',
+		homePage: 'Home Page',
+		update: 'Update',
+		cancel: 'Cancel',
+		// Form validation
+		roleNameRequired: 'Role name is required',
+			roleNameLength: 'Length should be 3 to 20 characters',
+			roleCodeRequired: 'Role code is required',
+			roleCodeLength: 'Length should be 3 to 20 characters',
+			// Error messages
+			fetchRoleDataError: 'Failed to fetch role data',
+			fetchPermissionDataError: 'Failed to fetch permission data',
+		permissionUpdateError: 'Failed to assign permissions',
+		roleCodeExists: 'Role code already exists',
+		roleNameExists: 'Role name already exists',
+		// Permission assignment
+		assignPermissionMenu: 'Assign Permission',
+		// Cache refresh
+		refreshCache: 'Refresh Cache',
+		refreshCacheSuccess: 'Cache refreshed successfully',
+		refreshCacheError: 'Failed to refresh cache',
+		// Home widget configuration (widget.vue)
+		widget: {
+			drawerTitle: 'Home Configuration for Role "{name}"',
+			availableComponents: 'Available Components',
+			searchPlaceholder: 'Search components...',
+			loadError: 'Failed to load configuration',
+			resetDefault: 'Reset default'
+		},
+	},
+};
