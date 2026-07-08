@@ -1,0 +1,8 @@
+# pnpm 11 构建许可配置（从 package.json 迁移至此）
+# 允许以下依赖运行 install 脚本：esbuild 装平台二进制、@parcel/watcher 文件监听等
+allowBuilds:
+  '@parcel/watcher': true
+  core-js: true
+  es5-ext: true
+  esbuild: true
+  vue-demi: true

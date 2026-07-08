@@ -1,7 +1,7 @@
 spring:
   data:
     redis:
-      host: pig-redis
+      host: 127.0.0.1   # 本机 docker redis (1Panel-redis)，原为容器主机名 pig-redis
       database: 5
   # 数据库相关配置
   datasource:
