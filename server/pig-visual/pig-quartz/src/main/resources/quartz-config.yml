@@ -12,7 +12,7 @@ spring:
             instanceId: AUTO
           jobStore:
             class: org.springframework.scheduling.quartz.LocalDataSourceJobStore # 数据库存储
-            driverDelegateClass: org.quartz.impl.jdbcjobstore.StdJDBCDelegate # 数据库代理
+            driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate # 数据库代理 (PostgreSQL 方言)
             tablePrefix: QRTZ_ # 表前缀
             isClustered: false # 集群
             clusterCheckinInterval: 30000 # 集群检查间隔

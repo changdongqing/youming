@@ -21,6 +21,7 @@ import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
+import com.baomidou.mybatisplus.annotation.DbType;
 import com.pig4cloud.pig.common.data.resolver.SqlFilterArgumentResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.mapping.DatabaseIdProvider;
@@ -65,8 +66,8 @@ public class MybatisPlusConfiguration implements WebMvcConfigurer {
 	@Bean
 	public MybatisPlusInterceptor mybatisPlusInterceptor() {
 		MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
-		// 分页支持
-		PaginationInnerInterceptor paginationInnerInterceptor = new PaginationInnerInterceptor();
+		// 分页支持 (youming 迁移到 PostgreSQL 后显式指定方言, 避免自动探测偶发失败)
+		PaginationInnerInterceptor paginationInnerInterceptor = new PaginationInnerInterceptor(DbType.POSTGRE_SQL);
 		paginationInnerInterceptor.setMaxLimit(1000L);
 		interceptor.addInnerInterceptor(paginationInnerInterceptor);
 

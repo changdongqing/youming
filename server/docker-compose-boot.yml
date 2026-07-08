@@ -1,18 +1,31 @@
-# 使用说明 V6.0 - 单体架构版本
+# 使用说明 V6.0 - 单体架构版本 (PostgreSQL)
 # 1. 先构建单体 JAR: mvn clean install -Pboot -DskipTests
 # 2. 启动服务: docker compose -f docker-compose-boot.yml up -d
 # 3. 静静等待服务启动
+# 注: 本机已通过 1Panel 运行 PostgreSQL (1Panel-postgresql-ANBv, 库 youmingdb),
+#     本地调试可直接连该容器, 无需启动此 pig-postgres 服务。
+#     仅在需要纯净容器化环境时取消下方 pig-postgres 注释。
 services:
-  pig-mysql:
-    build:
-      context: ./db
-    environment:
-      MYSQL_ROOT_HOST: "%"
-      MYSQL_ROOT_PASSWORD: root
+  # pig-postgres:
+  #   build:
+  #     context: ./db
+  #     dockerfile: postgresql/Dockerfile
+  #   environment:
+  #     POSTGRES_USER: user_PAmcy2
+  #     POSTGRES_PASSWORD: password_bkQ4JT
+  #     POSTGRES_DB: youmingdb
+  #   restart: always
+  #   container_name: pig-postgres
+  #   image: pig-postgres
+  #   ports:
+  #     - 5432:5432
+  #   networks:
+  #     - spring_cloud_default
+
+  pig-redis:
+    container_name: pig-redis
+    image: registry.cn-hangzhou.aliyuncs.com/dockerhub_mirror/redis
     restart: always
-    container_name: pig-mysql
-    image: pig-mysql
-    command: --lower_case_table_names=1
     networks:
       - spring_cloud_default
 

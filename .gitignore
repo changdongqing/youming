@@ -31,3 +31,5 @@ logs/
 # AI 记忆 / 本地缓存（按需保留或忽略）
 .claude/settings.local.json
 .superpowers/
+__pycache__/
+*.pyc

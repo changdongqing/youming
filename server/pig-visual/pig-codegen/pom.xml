@@ -96,6 +96,11 @@
             <groupId>org.anyline</groupId>
             <artifactId>anyline-data-jdbc-mysql</artifactId>
         </dependency>
+        <!--anyline postgresql 适配器: 迁移到 PG 后 codegen 连接 PG 数据源做元数据解析所需-->
+        <dependency>
+            <groupId>org.anyline</groupId>
+            <artifactId>anyline-data-jdbc-postgresql</artifactId>
+        </dependency>
         <!--common-->
         <dependency>
             <groupId>com.pig4cloud</groupId>
