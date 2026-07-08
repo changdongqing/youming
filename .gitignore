@@ -1,0 +1,33 @@
+# === youming 主仓库级别忽略规则 ===
+# 后端(pig)与前端(pig-ui)子目录各自携带 .gitignore，
+# 负责忽略各自的构建产物与依赖(target/、node_modules/、dist/、*.iml 等)。
+# 此处仅补充仓库根级别的通用规则。
+
+# 操作系统
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE / 编辑器（根目录级别，补充子项目未覆盖的情况）
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+*.swp
+*.swo
+
+# 本地环境与密钥
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# 日志
+*.log
+logs/
+
+# AI 记忆 / 本地缓存（按需保留或忽略）
+.claude/settings.local.json
+.superpowers/
