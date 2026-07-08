@@ -1,7 +1,7 @@
 # 04 · Flyway 集成设计 评审
 
-> 评审对象：`public/pig/docs/dbdoc/04-Flyway集成设计.md`
-> 评审基线：public/pig 仓库 master 源码
+> 评审对象：pig 原始设计《04-Flyway集成设计》
+> 评审基线：本仓库 `server/`（pig 二次开发）`youming` 分支源码
 
 ## 一、总体评价
 
@@ -29,11 +29,15 @@
 
 **本节确认**：04 文档自身逻辑自洽（5.2 推荐 data only），问题在跨文档口径。建议 04-5.2 显式标注"结构由 Flyway 基线脚本建，pgloader 仅 `WITH data only` 迁数据"，并反向引用 02-7.1 修订。
 
+> ✅ **2026-07-08 youming 落地结论**：youming 空库迁移，直接由 Flyway 基线脚本建表 + 种子数据，不使用 pgloader。N1 闭环，详见 [07-youming-Flyway落地设计](./07-youming-Flyway落地设计.md)。
+
 ### N3. Nacos PG 不纳入 Flyway 的边界正确，但 Nacos 自身 PG 成熟度仍是外部风险 🟡
 
 1.3 节明确"Nacos 库 pig_config 不纳入 pig 的 Flyway，由 Nacos 自身管理"——**这个边界划分正确**，避免了应用层 Flyway 接管 Nacos server schema 的越界。评审赞同。
 
 但 Nacos 自身切 PG 的成熟度风险（社区插件历史）依然存在，已与 01 评审 N3 衔接。Flyway 集成本身不受 Nacos 影响（Nacos 库不在 Flyway 管辖），故此风险不影响 Flyway 设计成立性，仅影响整体迁移的 P2 环节。
+
+> ✅ **2026-07-08 更新**：Nacos 3.2.2 原生内置 PG 支持（见 00-总评审报告 N3），成熟度风险消除。"Nacos 库不纳入 Flyway"的边界划分在 youming 中依然成立——Nacos 元数据库由其自身 `pg-schema.sql` 管理。
 
 ### N4. Flyway 与 Druid wall 的共存需在基线前验证 🟡
 

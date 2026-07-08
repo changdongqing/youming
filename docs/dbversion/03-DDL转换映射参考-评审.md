@@ -1,7 +1,7 @@
 # 03 · DDL 转换映射参考 评审
 
-> 评审对象：`public/pig/docs/dbdoc/03-DDL转换映射参考.md`
-> 评审基线：public/pig 仓库 master 源码
+> 评审对象：pig 原始设计《03-DDL转换映射参考》
+> 评审基线：本仓库 `server/`（pig 二次开发）`youming` 分支源码
 
 ## 一、总体评价
 
@@ -39,6 +39,8 @@
 **修订**：
 
 > 迁移后需验证实体 updateTime 字段标注了 `@TableField(fill = FieldFill.UPDATE)`（UPDATE 场景注解驱动），且 INSERT 场景由 `MybatisPlusMetaObjectHandler.insertFill` 兜底填充（已实现，见 insertFill 对 updateTime 的 fillValIfNull）。无需改注解为 INSERT_UPDATE。
+
+> ✅ **2026-07-08 源码复核**：`server/pig-upms/pig-upms-api/src/main/java/com/pig4cloud/pig/admin/api/entity/SysUser.java:99-101` 确为 `@TableField(fill = FieldFill.UPDATE)`；`MybatisPlusMetaObjectHandler.insertFill` 对 createTime/updateTime 均做 `fillValIfNullByName` 兜底。S2 修订有效。
 
 ### 类型种数口径：gen_field_type "22 种 PG 类型" vs 实测 18 行 🟢（非问题，澄清即可）
 
