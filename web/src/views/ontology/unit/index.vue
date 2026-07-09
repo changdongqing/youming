@@ -1,7 +1,7 @@
 <template>
-	<div class="layout-padding ontology-unit-page">
-		<splitpanes>
-			<pane size="28">
+	<div ref="pageRef" class="layout-padding ontology-unit-page">
+		<splitpanes @resized="handleResized">
+			<pane :size="leftPaneSize" :min="10" :max="50">
 				<div class="layout-padding-auto layout-padding-view category-panel">
 					<el-row class="mb8" justify="space-between">
 						<el-button icon="folder-add" type="primary" v-auth="'ontology_unit_add'" @click="openCategoryDialog()">新增分类</el-button>
@@ -211,6 +211,21 @@ const categoryTreeRef = ref();
 const categoryFormRef = ref();
 const unitFormRef = ref();
 const queryRef = ref();
+
+const pageRef = ref();
+const LEFT_DEFAULT_PX = 300;
+const leftPaneSize = ref(28);
+const userResized = ref(false);
+let resizeObserver: ResizeObserver | null = null;
+
+const recalcLeftPane = (width: number) => {
+	if (userResized.value || !width) return;
+	leftPaneSize.value = Math.min(50, Math.max(10, (LEFT_DEFAULT_PX / width) * 100));
+};
+
+const handleResized = () => {
+	userResized.value = true;
+};
 
 const categories = ref<any[]>([]);
 const selectedCategory = ref<any>();
@@ -451,6 +466,18 @@ const handleDeleteUnit = async (row: any) => {
 
 onMounted(() => {
 	loadCategories();
+	if (pageRef.value) {
+		recalcLeftPane(pageRef.value.clientWidth);
+		resizeObserver = new ResizeObserver((entries) => {
+			recalcLeftPane(entries[0].contentRect.width);
+		});
+		resizeObserver.observe(pageRef.value);
+	}
+});
+
+onUnmounted(() => {
+	resizeObserver?.disconnect();
+	resizeObserver = null;
 });
 </script>
 
