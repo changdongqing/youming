@@ -42,6 +42,12 @@
             <artifactId>pig-upms-biz</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--本体建模模块-->
+        <dependency>
+            <groupId>com.pig4cloud</groupId>
+            <artifactId>pig-ontology-biz</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!--代码生成模块-->
         <dependency>
             <groupId>com.pig4cloud</groupId>
