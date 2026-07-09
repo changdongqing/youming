@@ -94,7 +94,11 @@
 						</el-table-column>
 						<el-table-column label="换算系数" prop="factor" width="120" show-overflow-tooltip />
 						<el-table-column label="偏移" prop="offsetValue" width="100" show-overflow-tooltip />
-						<el-table-column label="命名空间" prop="namespace" min-width="180" show-overflow-tooltip />
+						<el-table-column label="命名空间" prop="namespaceId" min-width="120" show-overflow-tooltip>
+							<template #default="scope">
+								{{ getNamespaceLabel(scope.row.namespaceId) }}
+							</template>
+						</el-table-column>
 						<el-table-column label="排序" prop="sortOrder" width="80" />
 						<el-table-column label="操作" fixed="right" width="160">
 							<template #default="scope">
@@ -174,8 +178,10 @@
 				<el-form-item label="换算偏移" prop="offsetValue">
 					<el-input-number v-model="unitForm.offsetValue" :disabled="isBuiltinUnitEdit" :precision="12" controls-position="right" style="width: 100%" />
 				</el-form-item>
-				<el-form-item label="命名空间" prop="namespace">
-					<el-input v-model="unitForm.namespace" :disabled="isBuiltinUnitEdit" placeholder="如 http://example.org/ontology/ext#" />
+				<el-form-item label="命名空间" prop="namespaceId">
+					<el-select v-model="unitForm.namespaceId" :disabled="isBuiltinUnitEdit" placeholder="请选择命名空间" filterable style="width: 100%">
+						<el-option v-for="item in namespaces" :key="item.id" :label="item.prefix + '（' + item.uri + '）'" :value="item.id" />
+					</el-select>
 				</el-form-item>
 				<el-form-item label="排序" prop="sortOrder">
 					<el-input-number v-model="unitForm.sortOrder" :min="0" controls-position="right" style="width: 100%" />
@@ -203,14 +209,20 @@ import {
 	putCategoryObj,
 	putUnitObj,
 } from '/@/api/ontology/unit';
+import { fetchNamespaceList } from '/@/api/ontology/namespace';
 import { useMessage, useMessageBox } from '/@/hooks/message';
-
-const DEFAULT_NAMESPACE = 'http://example.org/ontology/ext#';
 
 const categoryTreeRef = ref();
 const categoryFormRef = ref();
 const unitFormRef = ref();
 const queryRef = ref();
+
+const namespaces = ref<any[]>([]);
+
+const getNamespaceLabel = (id: any) => {
+	const ns = namespaces.value.find((item) => item.id === id);
+	return ns ? ns.prefix : '';
+};
 
 const pageRef = ref();
 const LEFT_DEFAULT_PX = 300;
@@ -275,7 +287,7 @@ const validateNamespace = (_rule: any, value: any, callback: any) => {
 		callback();
 		return;
 	}
-	callback(new Error('扩展单位必须填写命名空间'));
+	callback(new Error('扩展单位必须选择命名空间'));
 };
 
 const unitRules = {
@@ -283,7 +295,7 @@ const unitRules = {
 	unitCode: [{ required: true, message: '请输入单位编码', trigger: 'blur' }],
 	unitSymbol: [{ required: true, message: '请输入单位符号', trigger: 'blur' }],
 	unitName: [{ required: true, message: '请输入单位名称', trigger: 'blur' }],
-	namespace: [{ validator: validateNamespace, trigger: 'blur' }],
+	namespaceId: [{ validator: validateNamespace, trigger: 'change' }],
 };
 
 const filteredCategories = computed(() => {
@@ -304,28 +316,34 @@ const resetCategoryForm = (row?: any) => {
 	Object.assign(categoryForm, row ? { ...row } : { categoryCode: '', categoryName: '', baseUnitSymbol: '', sortOrder: 0, remarks: '' });
 };
 
-const resetUnitForm = (row?: any) => {
-	Object.keys(unitForm).forEach((key) => delete unitForm[key]);
-	Object.assign(
-		unitForm,
-		row
-			? { ...row }
-			: {
-					categoryId: selectedCategory.value?.id,
-					unitCode: '',
-					unitSymbol: '',
-					unitName: '',
-					isBaseUnit: '0',
-					factor: undefined,
-					offsetValue: undefined,
-					sortOrder: 0,
-					namespace: DEFAULT_NAMESPACE,
-					remarks: '',
-				},
-	);
-};
+	const resetUnitForm = (row?: any) => {
+		Object.keys(unitForm).forEach((key) => delete unitForm[key]);
+		const defaultNsId = namespaces.value.find((item) => item.prefix === 'std')?.id;
+		Object.assign(
+			unitForm,
+			row
+				? { ...row }
+				: {
+						categoryId: selectedCategory.value?.id,
+						unitCode: '',
+						unitSymbol: '',
+						unitName: '',
+						isBaseUnit: '0',
+						factor: undefined,
+						offsetValue: undefined,
+						sortOrder: 0,
+						namespaceId: defaultNsId,
+						remarks: '',
+					},
+		);
+	};
 
-const loadCategories = async () => {
+	const loadNamespaces = async () => {
+		const res = await fetchNamespaceList();
+		namespaces.value = res.data || [];
+	};
+
+	const loadCategories = async () => {
 	const res = await fetchCategoryList();
 	categories.value = res.data || [];
 	if (!selectedCategory.value && categories.value.length > 0) {
@@ -464,8 +482,9 @@ const handleDeleteUnit = async (row: any) => {
 	}
 };
 
-onMounted(() => {
-	loadCategories();
+	onMounted(() => {
+		loadNamespaces();
+		loadCategories();
 	if (pageRef.value) {
 		recalcLeftPane(pageRef.value.clientWidth);
 		resizeObserver = new ResizeObserver((entries) => {

@@ -13,70 +13,47 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.activerecord.Model;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 单位条目。
+ * 命名空间。
  *
  * @author youming
  */
 @Data
-@TableName("ont_unit")
-@Schema(description = "单位条目")
+@TableName("ont_namespace")
+@Schema(description = "命名空间")
 @EqualsAndHashCode(callSuper = true)
-public class OntUnit extends Model<OntUnit> {
+public class OntNamespace extends Model<OntNamespace> {
 
 	private static final long serialVersionUID = 1L;
 
 	@TableId(type = IdType.ASSIGN_ID)
-	@Schema(description = "单位ID")
+	@Schema(description = "命名空间ID")
 	private Long id;
 
-	@NotNull(message = "单位分类不能为空")
-	@Schema(description = "分类ID")
-	private Long categoryId;
+	@NotBlank(message = "前缀不能为空")
+	@Schema(description = "前缀标识")
+	private String prefix;
 
-	@NotBlank(message = "单位编码不能为空")
-	@Schema(description = "单位编码")
-	private String unitCode;
+	@NotBlank(message = "命名空间URI不能为空")
+	@Schema(description = "命名空间URI")
+	private String uri;
 
-	@NotBlank(message = "单位符号不能为空")
-	@Schema(description = "单位符号")
-	private String unitSymbol;
-
-	@NotBlank(message = "单位名称不能为空")
-	@Schema(description = "单位名称")
-	private String unitName;
-
-	@Schema(description = "是否基准单位，1是0否")
-	private String isBaseUnit;
+	@Schema(description = "是否默认，1是0否")
+	private String isDefault;
 
 	@Schema(description = "是否内置，1是0否")
 	private String isBuiltin;
 
-	@Schema(description = "换算乘系数")
-	private BigDecimal factor;
-
-	@Schema(description = "换算偏移")
-	private BigDecimal offsetValue;
-
 	@Schema(description = "排序")
 	private Integer sortOrder;
 
-	@Deprecated
-	@Schema(description = "命名空间（已弃用，使用namespaceId引用ont_namespace）")
-	private String namespace;
-
-	@Schema(description = "命名空间ID，引用ont_namespace.id")
-	private Long namespaceId;
-
-	@Schema(description = "备注")
-	private String remarks;
+	@Schema(description = "描述")
+	private String description;
 
 	@TableField(fill = FieldFill.INSERT)
 	@Schema(description = "创建人")

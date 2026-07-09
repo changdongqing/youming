@@ -7,8 +7,10 @@ package com.pig4cloud.pig.ontology.service.impl;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.pig4cloud.pig.common.core.util.R;
+import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntUnit;
 import com.pig4cloud.pig.ontology.entity.OntUnitCategory;
+import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntUnitMapper;
 import com.pig4cloud.pig.ontology.service.OntUnitCategoryService;
 import com.pig4cloud.pig.ontology.service.OntUnitService;
@@ -41,6 +43,8 @@ public class OntUnitServiceImpl extends ServiceImpl<OntUnitMapper, OntUnit> impl
 	private static final Pattern CODE_PATTERN = Pattern.compile("^[a-z][a-z0-9_-]*$");
 
 	private final OntUnitCategoryService categoryService;
+
+	private final OntNamespaceMapper namespaceMapper;
 
 	@Override
 	@Transactional(rollbackFor = Exception.class)
@@ -188,8 +192,14 @@ public class OntUnitServiceImpl extends ServiceImpl<OntUnitMapper, OntUnit> impl
 		if (!StringUtils.hasText(unit.getUnitName())) {
 			return R.failed("单位名称不能为空");
 		}
-		if (!BUILTIN.equals(unit.getIsBuiltin()) && !StringUtils.hasText(unit.getNamespace())) {
-			return R.failed("扩展单位必须填写命名空间");
+		if (!BUILTIN.equals(unit.getIsBuiltin())) {
+			if (unit.getNamespaceId() == null) {
+				return R.failed("扩展单位必须选择命名空间");
+			}
+			OntNamespace namespace = namespaceMapper.selectById(unit.getNamespaceId());
+			if (namespace == null) {
+				return R.failed("引用的命名空间不存在");
+			}
 		}
 
 		long codeCount = this.count(Wrappers.<OntUnit>lambdaQuery()
