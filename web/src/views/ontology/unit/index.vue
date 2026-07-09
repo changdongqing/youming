@@ -83,7 +83,7 @@
 						<el-table-column label="基准" prop="isBaseUnit" width="80">
 							<template #default="scope">
 								<el-tag v-if="scope.row.isBaseUnit === '1'" type="success">是</el-tag>
-								<span v-else>否</span>
+								<el-tag v-else type="info">否</el-tag>
 							</template>
 						</el-table-column>
 						<el-table-column label="内置" prop="isBuiltin" width="80">
