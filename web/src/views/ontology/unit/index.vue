@@ -18,13 +18,13 @@
 							:highlight-current="true"
 							@node-click="handleCategoryClick"
 						>
-							<template #default="{ data }">
-								<span class="custom-tree-node">
-									<span>
-										<span class="label">{{ data.categoryName }}</span>
-										<el-tag v-if="data.isBuiltin === '1'" size="small" class="ml6">内置</el-tag>
-										<span class="code">{{ data.categoryCode }} / {{ data.baseUnitSymbol }}</span>
-									</span>
+								<template #default="{ data }">
+									<span class="custom-tree-node">
+										<span class="custom-tree-node-info">
+											<span class="label">{{ data.categoryName }}</span>
+											<el-tag v-if="data.isBuiltin === '1'" size="small" class="ml6">内置</el-tag>
+											<span class="code">{{ data.categoryCode }} / {{ data.baseUnitSymbol }}</span>
+										</span>
 									<span class="do">
 										<el-button-group>
 											<el-button icon="edit" size="small" v-auth="'ontology_unit_edit'" @click.stop="openCategoryDialog(data)" />
@@ -302,7 +302,7 @@ const resetUnitForm = (row?: any) => {
 					unitName: '',
 					isBaseUnit: '0',
 					factor: undefined,
-					offsetValue: 0,
+					offsetValue: undefined,
 					sortOrder: 0,
 					namespace: DEFAULT_NAMESPACE,
 					remarks: '',
@@ -476,12 +476,22 @@ onMounted(() => {
 }
 .custom-tree-node .label {
 	font-weight: 500;
+	white-space: nowrap;
+}
+.custom-tree-node-info {
+	display: flex;
+	align-items: center;
+	flex-wrap: nowrap;
+	gap: 6px;
+	min-width: 0;
+	overflow: hidden;
 }
 .custom-tree-node .code {
-	display: block;
 	font-size: 12px;
 	color: #999;
-	margin-top: 2px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 .custom-tree-node .do {
 	display: none;

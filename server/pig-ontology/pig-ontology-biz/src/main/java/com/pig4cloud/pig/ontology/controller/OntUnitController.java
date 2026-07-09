@@ -111,7 +111,11 @@ public class OntUnitController {
 	@GetMapping("/by-symbol/{symbol}")
 	@HasPermission("ontology_unit_view")
 	public R getBySymbol(@PathVariable String symbol) {
-		return R.ok(ontUnitService.getBySymbol(symbol));
+		OntUnit unit = ontUnitService.getBySymbol(symbol);
+		if (unit == null) {
+			return R.failed("未找到符号对应的单位: " + symbol);
+		}
+		return R.ok(unit);
 	}
 
 	/**

@@ -65,6 +65,9 @@ public class OntUnitCategoryServiceImpl extends ServiceImpl<OntUnitCategoryMappe
 		}
 
 		if (BUILTIN.equals(old.getIsBuiltin())) {
+			if (!StringUtils.hasText(category.getCategoryName())) {
+				return R.failed("分类名称不能为空");
+			}
 			OntUnitCategory update = new OntUnitCategory();
 			update.setId(old.getId());
 			update.setCategoryName(category.getCategoryName());

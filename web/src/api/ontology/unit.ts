@@ -54,6 +54,13 @@ export function fetchUnitTree() {
 	});
 }
 
+export function fetchUnitBySymbol(symbol: string) {
+	return request({
+		url: `/admin/ontology/units/by-symbol/${symbol}`,
+		method: 'get',
+	});
+}
+
 export function addUnitObj(obj: any) {
 	return request({
 		url: '/admin/ontology/units',
