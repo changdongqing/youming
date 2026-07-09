@@ -15,8 +15,8 @@
 
 | 服务 | 容器名 | 端口 | 凭证 / 说明 |
 |------|--------|------|------------|
-| **PostgreSQL** | `1Panel-postgresql-ANBv` | 5432 | PG 18.4-alpine；**用户名 `user_PAmcy2`，密码 `password_bkQ4JT`**；数据卷 `/opt/1panel/apps/postgresql/postgresql/data` |
-| MySQL（旧/源库） | `1Panel-mysql-AFGI` | 3306 | MySQL 8.4.10；账号 `root/root`（迁移源，逐步弃用） |
+| **PostgreSQL** | `1Panel-postgresql-ANBv` | 5432 | PG 18.4-alpine；**用户名 `user_PAmcy2`，密码 `password_bkQ4JT`**；数据卷 `/opt/1panel/apps/postgresql/postgresql/data`。业务库结构由 Flyway 管理（见下） |
+| MySQL（已弃用） | `1Panel-mysql-AFGI` | 3306 | MySQL 8.4.10；账号 `root/root`。**youming 已迁移至 PostgreSQL，开发测试不再使用 MySQL**（仅保留作迁移源回溯） |
 | Nacos | `1Panel-nacos-4GLs-standalone` | 8848/9848/8080 | nacos-server v3.2.2 standalone（可复用，也可用内嵌 pig-register） |
 | Redis | `1Panel-redis-2G4M` | 6379 | redis 8.8.0 |
 
@@ -25,6 +25,7 @@
 - **数据库名：`youmingdb`**（容器 `1Panel-postgresql-ANBv` 内，已创建）
 - 连接串：`jdbc:postgresql://127.0.0.1:5432/youmingdb`（容器内或宿主机均可用 5432）
 - 用户名 / 密码：`user_PAmcy2` / `password_bkQ4JT`
+- **库结构由 [Flyway](https://flywaydb.org/) 统一管理**：迁移脚本位于 `server/pig-common/pig-common-data/src/main/resources/db/migration/`（V1 业务表结构 / V2 种子数据 / V3 Quartz 表），应用启动自动迁移。**变更库结构须新增版本脚本，禁止直接改已应用的脚本**（checksum 校验）。
 
 > 操作 PG 的便捷方式（本机无 psql CLI，通过 docker exec）：
 > ```bash

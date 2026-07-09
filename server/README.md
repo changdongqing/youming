@@ -12,7 +12,7 @@
 - Pig 是基于 Spring Cloud、Spring Boot、OAuth2 的 RBAC 企业级快速开发平台，同时支持微服务架构和单体架构。
 - 认证中心基于 Spring Authorization Server 落地生产级 OAuth2 实践，支持授权码、密码、刷新令牌等常见登录与授权场景。
 - 当前开源版本保留认证、网关、用户权限、监控、代码生成和定时任务等核心能力，移除了商业版中的多租户、数据权限、动态路由、流程、支付、公众号、报表和移动端服务等扩展模块。
-- 提供 Docker Compose 本地编排，支持快速启动 MySQL、Redis、Nacos 和业务服务。
+- 提供 Docker Compose 本地编排，支持快速启动 PostgreSQL、Redis、Nacos 和业务服务。
 
 ## 使用文档
 
@@ -109,7 +109,7 @@ pig
 - 微服务模式使用 `cloud` profile，默认激活 `dev` 环境配置。
 - 单体模式使用 `boot` profile，`pig-boot` 模块只在该 profile 下参与构建。
 - 网关路由由 `pig-gateway/src/main/resources/application.yml` 和 Nacos 配置维护，不再依赖动态路由表。
-- 默认数据库脚本位于 `db/`，业务表初始化到 `pig`，Nacos 配置初始化到 `pig_config`。
+- 数据库为 PostgreSQL（youming 已从上游的 MySQL 迁移而来）。业务库结构由 [Flyway](https://flywaydb.org/) 统一管理，迁移脚本位于 `pig-common/pig-common-data/src/main/resources/db/migration/`，应用启动自动迁移；上游遗留的 `db/pig.sql`、`db/pig_config.sql` 为 MySQL 脚本，仅作迁移源参考。
 - 包名已统一为 `com.pig4cloud.pig`。
 
 ## 开源共建

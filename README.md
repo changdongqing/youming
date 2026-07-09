@@ -25,15 +25,17 @@ youming/
 | 后端框架 | Spring Boot / Spring Cloud / Spring Cloud Alibaba | 4.0.7 / 2025.1.2 / 2025.1.0.0 |
 | 后端语言 | Java | 17 |
 | 注册/配置中心 | Nacos（内嵌于 `pig-register`，standalone 模式） | 3.2.2 |
-| 数据库 | MySQL | 8.x |
-| 缓存 | Redis | 6.x / 7.x |
+| 数据库 | PostgreSQL | 18.x（库结构由 [Flyway](https://flywaydb.org/) 统一管理，迁移脚本见 `server/pig-common/pig-common-data/src/main/resources/db/migration/`） |
+| 缓存 | Redis | 8.x |
 | 前端框架 | Vue 3 + Element Plus + Vite + TypeScript | 3.5 / 2.13 / 8.1 / 4.9 |
 | 包管理 | Maven（后端）/ npm（前端） | — |
 
 后端支持两种运行形态：
 
 - **微服务版**：`pig-register`（Nacos）+ `pig-gateway`（9999）+ `pig-auth`（3000）+ `pig-upms-biz`（4000）+ `pig-visual`（codegen / monitor / quartz）等独立服务，通过 Nacos 做配置中心与服务发现。
-- **单体版**：`pig-boot`（9999，context-path `/admin`），关闭 Nacos/Sentinel/Cloud 发现，直连 MySQL 与 Redis，开箱即用。
+- **单体版**：`pig-boot`（9999，context-path `/admin`），关闭 Nacos/Sentinel/Cloud 发现，直连 PostgreSQL 与 Redis，开箱即用。
+
+> 数据库已从上游的 MySQL 迁移至 PostgreSQL（业务库 + Nacos 元数据库全部去 MySQL），迁移设计与核验记录见 `docs/dbversion/`。**开发与测试一律以 PostgreSQL 为准**。
 
 ## 快速开始
 
