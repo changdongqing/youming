@@ -30,12 +30,20 @@ spring:
       password: ${PG_PASSWORD:password_bkQ4JT}
       url: jdbc:postgresql://${PG_HOST:127.0.0.1}:${PG_PORT:5432}/${PG_DB:youmingdb}
 
-# 文件上传配置
+# 文件上传配置 (存储切换: local=本地磁盘, oss=MinIO/S3 对象存储, 由 FileTemplate 按此装配)
 file:
-  type: local
-  local:
-    # 本地存储根目录 (原为上游 macOS 路径 /Users/lengleng/Downloads/img, 本机不存在导致上传报错"没有那个文件或目录")
-    base-path: ${FILE_BASE_PATH:/home/chdq/youming/upload}
+  type: oss
+  bucket-name: youming            # 对应 MinIO bucket 名 (FileProperties 默认 local, 此处显式指定)
+  oss:
+    endpoint: ${OSS_ENDPOINT:http://127.0.0.1:9000}        # MinIO API (1Panel 容器映射到宿主 9000)
+    access-key: ${OSS_ACCESS_KEY:minio_GcAhXh}
+    secret-key: ${OSS_SECRET_KEY:minio_HrhjZM}
+    bucket-name: youming          # 与 file.bucket-name 保持一致
+    path-style-access: true       # MinIO 用 path-style, 阿里云等用 false(virtual-hosted)
+    region: ${OSS_REGION:us-east-1}
+    # custom-domain: https://oss.your-domain.com/youming  # 上线走公共读直链时再启用
+  # local:                        # 本地存储备用 (切回 file.type=local 并取消注释即可)
+  #   base-path: ${FILE_BASE_PATH:/home/chdq/youming/upload}
 
 # 验证码配置
 aj:
