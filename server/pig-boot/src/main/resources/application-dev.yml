@@ -11,6 +11,16 @@ spring:
         quartz:
           jobStore:
             driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
+  # Flyway 数据库版本管理 (youming 迁移 PG 后引入, 基线脚本 V1/V2/V3 见 pig-common-data/db/migration)
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true      # 存量库迁移时建立基线 (空库则直接 migrate)
+    baseline-version: 0            # 基线版本 (V1 之前)
+    validate-on-migrate: true      # 迁移前校验已应用脚本 checksum
+    table: flyway_schema_history   # 历史表名
+    encoding: UTF-8
+    placeholder-replacement: false # 禁用 placeholder 替换 (gen_template 种子数据含 ${package} 等 Velocity 变量, 非 Flyway 占位符)
   # 数据库相关配置 (PostgreSQL, 由 MySQL 迁移而来)
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource

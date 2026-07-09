@@ -46,6 +46,12 @@ pig-boot 聚合了 auth/upms-biz/codegen/quartz，单进程单 DataSource 连 `y
 ### 3.1 依赖（pig-common-data/pom.xml）
 
 ```xml
+<!-- Spring Boot 4.x 的 Flyway 自动配置模块 (FlywayAutoConfiguration) -->
+<!-- 必须! Spring Boot 4.x 把 flyway 自动配置移到独立模块, 缺它则 Flyway 不触发 -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-flyway</artifactId>
+</dependency>
 <dependency>
     <groupId>org.flywaydb</groupId>
     <artifactId>flyway-core</artifactId>
@@ -56,7 +62,9 @@ pig-boot 聚合了 auth/upms-biz/codegen/quartz，单进程单 DataSource 连 `y
 </dependency>
 ```
 
-> 版本由 Spring Boot 4.0.7 的 `spring-boot-dependencies` BOM 管理（`flyway-core` / `flyway-database-postgresql`），无需在 pig-common-bom 显式声明版本。
+> 版本由 Spring Boot 4.0.7 的 `spring-boot-dependencies` BOM 管理（flyway 11.14.1），无需在 pig-common-bom 显式声明版本。
+>
+> ⚠️ **关键（2026-07-08 实测）**：Spring Boot 4.x 把 Flyway 自动配置从 `spring-boot-autoconfigure` 移到了独立的 **`spring-boot-flyway`** 模块（`org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration`）。仅引入 `flyway-core` 不会触发自动配置，**必须同时引入 `spring-boot-flyway`**，否则 Flyway 完全不执行（日志 0 次 flyway 记录）。这是与 Spring Boot 3.x 的重大区别。
 
 ### 3.2 自动配置（application.yml）
 
@@ -72,7 +80,15 @@ spring:
     validate-on-migrate: true      # 迁移前校验
     table: flyway_schema_history   # 历史表名（默认）
     encoding: UTF-8
+    placeholder-replacement: false # 禁用 placeholder 替换 (关键! 见下方说明)
 ```
+
+> ⚠️ **关键（2026-07-08 实测）：`placeholder-replacement: false` 必须配置**。gen_template 表的 `template_code` 种子数据含大量 Velocity 变量 `${package}`、`${backendPath}`、`${ClassName}` 等，Flyway 默认会把这些 `${...}` 当作 Flyway placeholder 解析，因未定义对应 placeholder 而报错：
+> ```
+> FlywayException: Unable to parse statement in V2__init_seed_data.sql at line 548
+> No value provided for placeholder: ${backendPath}
+> ```
+> 禁用 placeholder 替换后，`${...}` 作为普通数据原样写入。此配置不影响 V1/V3（纯 DDL 无 `${}`）。
 
 ### 3.3 baseline 标准路径（youming 空库场景）
 
