@@ -34,7 +34,8 @@ spring:
 file:
   type: local
   local:
-    base-path: /Users/lengleng/Downloads/img
+    # 本地存储根目录 (原为上游 macOS 路径 /Users/lengleng/Downloads/img, 本机不存在导致上传报错"没有那个文件或目录")
+    base-path: ${FILE_BASE_PATH:/home/chdq/youming/upload}
 
 # 验证码配置
 aj:
