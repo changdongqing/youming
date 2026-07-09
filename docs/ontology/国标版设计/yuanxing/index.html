@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>标准本体建模平台｜高保真原型</title>
+  <style>
+    :root{
+      --primary:#1677ff; --primary-2:#e6f4ff; --success:#52c41a; --warning:#faad14; --error:#ff4d4f;
+      --sider:#001529; --sider-2:#000c17; --text:#1f1f1f; --muted:#667085; --line:#eaecf0;
+      --bg:#f5f7fb; --card:#fff; --shadow:0 8px 24px rgba(15,23,42,.08); --radius:10px;
+      --green-bg:#f6ffed; --gold-bg:#fffbe6; --red-bg:#fff1f0; --purple:#722ed1;
+    }
+    *{box-sizing:border-box} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",Arial,sans-serif;color:var(--text);background:var(--bg)}
+    .app{display:flex;min-height:100vh}.sider{width:256px;background:var(--sider);color:#b7c3d6;display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;z-index:20}.brand{height:64px;display:flex;align-items:center;padding:0 20px;color:#fff;font-size:18px;font-weight:700;letter-spacing:.2px;border-bottom:1px solid rgba(255,255,255,.08)}.brand-logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#1677ff,#69b1ff);display:grid;place-items:center;margin-right:10px;box-shadow:0 0 0 4px rgba(22,119,255,.15)}
+    .menu{padding:12px 8px;overflow:auto}.menu-group{font-size:12px;color:#6d7f99;padding:14px 16px 8px}.menu-item{height:42px;display:flex;align-items:center;gap:10px;padding:0 14px;border-radius:8px;cursor:pointer;transition:.18s;color:#c8d3e6;font-size:14px}.menu-item:hover{background:#0b2742;color:#fff}.menu-item.active{background:var(--primary);color:#fff}.menu-item .dot{width:18px;text-align:center}.sider-footer{margin-top:auto;padding:14px 16px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:#7f8fa6}.layout{margin-left:256px;min-height:100vh;width:calc(100% - 256px)}.topbar{height:64px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:10}.crumb{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)}.top-actions{display:flex;align-items:center;gap:10px}.select,.input{height:34px;border:1px solid #d0d5dd;border-radius:7px;padding:0 10px;background:#fff;color:#344054}.btn{height:34px;border:1px solid #d0d5dd;background:#fff;border-radius:7px;padding:0 14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;color:#344054;transition:.18s}.btn:hover{border-color:var(--primary);color:var(--primary)}.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}.btn.danger{border-color:#ffccc7;color:#cf1322;background:#fff1f0}.btn.ghost{background:transparent}.btn[disabled]{opacity:.5;cursor:not-allowed}.avatar{width:32px;height:32px;border-radius:50%;background:#f0f5ff;color:#2f54eb;display:grid;place-items:center;font-weight:700}.content{padding:24px}.page{display:none}.page.active{display:block}.page-title{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}.page-title h1{margin:0;font-size:22px}.page-title p{margin:6px 0 0;color:var(--muted)}.grid{display:grid;gap:16px}.grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 1px 2px rgba(16,24,40,.03)}.card-hd{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.card-hd h3{font-size:16px;margin:0}.card-bd{padding:18px}.stat{padding:18px}.stat .label{color:var(--muted);font-size:13px}.stat .num{font-size:30px;font-weight:720;margin-top:8px}.stat .hint{font-size:12px;margin-top:8px}.muted{color:var(--muted);font-size:13px}.tag{display:inline-flex;align-items:center;height:22px;border-radius:999px;padding:0 8px;font-size:12px;border:1px solid transparent}.tag.blue{background:var(--primary-2);border-color:#91caff;color:#0958d9}.tag.green{background:var(--green-bg);border-color:#b7eb8f;color:#237804}.tag.gold{background:var(--gold-bg);border-color:#ffe58f;color:#ad6800}.tag.red{background:var(--red-bg);border-color:#ffa39e;color:#a8071a}.tag.gray{background:#f2f4f7;border-color:#e4e7ec;color:#475467}.tag.purple{background:#f9f0ff;border-color:#d3adf7;color:#531dab}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.table{width:100%;border-collapse:collapse}.table th{background:#fafafa;text-align:left;color:#475467;font-size:13px;font-weight:600;padding:12px;border-bottom:1px solid var(--line)}.table td{padding:12px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:middle}.table tr:hover td{background:#fbfdff}.split{display:grid;grid-template-columns:290px minmax(0,1fr);gap:16px}.split.right{grid-template-columns:minmax(0,1fr) 320px}.tree{font-size:14px}.tree ul{list-style:none;margin:0;padding-left:18px}.tree li{padding:7px 8px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:space-between}.tree li:hover,.tree li.selected{background:#f0f7ff;color:#0958d9}.schema-detail{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}.kv{display:grid;grid-template-columns:110px 1fr;gap:10px 14px;font-size:14px}.kv .k{color:var(--muted)}.progress{height:8px;background:#eef2f6;border-radius:99px;overflow:hidden}.progress span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--primary),#69b1ff)}.steps{display:flex;gap:0;margin-bottom:18px}.step{flex:1;position:relative;text-align:center;color:var(--muted);font-size:13px}.step:before{content:"";display:block;width:26px;height:26px;margin:0 auto 8px;border-radius:50%;background:#fff;border:1px solid #d0d5dd}.step.done:before{background:var(--success);border-color:var(--success);content:"✓";color:#fff;line-height:26px}.step.active:before{background:var(--primary);border-color:var(--primary);box-shadow:0 0 0 4px var(--primary-2)}.step:not(:last-child):after{content:"";position:absolute;top:13px;left:calc(50% + 18px);right:calc(-50% + 18px);height:1px;background:#d0d5dd}.form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.form.one{grid-template-columns:1fr}.field label{display:block;font-size:13px;color:#344054;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:9px 10px;background:#fff;font-size:14px}.field textarea{min-height:78px;resize:vertical}.field .help{font-size:12px;color:var(--muted);margin-top:5px}.field.error input,.field.error select{border-color:var(--error);background:#fffafa}.field.error .help{color:var(--error)}.validation-list{display:flex;flex-direction:column;gap:10px}.vitem{border:1px solid var(--line);border-radius:8px;padding:10px;cursor:pointer}.vitem.error{background:#fff7f7;border-color:#ffccc7}.vitem.warn{background:#fffdf4;border-color:#ffe58f}.vitem.ok{background:#f6ffed;border-color:#b7eb8f}.vitem b{display:block;margin-bottom:4px}.tabs{display:flex;border-bottom:1px solid var(--line);gap:4px}.tab{padding:12px 16px;cursor:pointer;border-bottom:2px solid transparent;color:var(--muted)}.tab.active{color:var(--primary);border-bottom-color:var(--primary)}.tab-panel{display:none}.tab-panel.active{display:block}.code{background:#0b1220;color:#d6e4ff;border-radius:10px;padding:16px;font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;font-size:13px;line-height:1.6;overflow:auto}.drawer-mask,.modal-mask{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:99}.drawer{position:absolute;right:0;top:0;bottom:0;width:560px;background:#fff;box-shadow:-10px 0 30px rgba(0,0,0,.15);display:flex;flex-direction:column}.drawer .hd,.modal .hd{height:58px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 18px}.drawer .bd{padding:18px;overflow:auto}.drawer .ft,.modal .ft{border-top:1px solid var(--line);padding:12px 18px;display:flex;justify-content:flex-end;gap:10px}.modal-mask{display:none;align-items:center;justify-content:center}.modal{width:520px;background:#fff;border-radius:12px;box-shadow:var(--shadow);overflow:hidden}.modal .bd{padding:18px}.close{border:0;background:transparent;font-size:20px;cursor:pointer;color:#667085}.graph-wrap{position:relative;height:540px;background:linear-gradient(180deg,#fff,#f8fbff);border:1px solid var(--line);border-radius:12px;overflow:hidden}.graph-toolbar{position:absolute;top:12px;left:12px;z-index:2}.node-card{position:absolute;min-width:132px;padding:10px 12px;background:#fff;border:1px solid #91caff;border-radius:10px;box-shadow:0 8px 18px rgba(22,119,255,.12);cursor:pointer}.node-card.core{border-color:#b7eb8f}.node-card.warn{border-color:#ffe58f}.node-card.selected{outline:3px solid rgba(22,119,255,.2)}.edge{position:absolute;height:2px;background:#91caff;transform-origin:left center}.edge span{position:absolute;top:-20px;left:45%;font-size:12px;background:#fff;color:#0958d9;padding:1px 6px;border-radius:10px;border:1px solid #d6e4ff}.unit-layout{display:grid;grid-template-columns:260px 1fr;gap:16px}.unit-pill{display:inline-flex;align-items:center;justify-content:center;min-width:50px;height:32px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;margin:4px;font-weight:700}.unit-pill.primary{border-color:#91caff;background:#e6f4ff;color:#0958d9}.timeline{position:relative;padding-left:22px}.timeline:before{content:"";position:absolute;left:7px;top:2px;bottom:2px;width:2px;background:#edf2f7}.tl{position:relative;margin-bottom:16px}.tl:before{content:"";position:absolute;left:-20px;top:3px;width:10px;height:10px;border-radius:50%;background:var(--primary);box-shadow:0 0 0 3px #e6f4ff}.empty{height:160px;display:grid;place-items:center;color:var(--muted);background:#fafafa;border:1px dashed #d0d5dd;border-radius:10px}.toast{position:fixed;right:24px;top:78px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);padding:12px 14px;border-radius:8px;display:none;z-index:120}.toast.show{display:block}.mobile-note{display:none}
+    @media(max-width:1100px){.sider{width:88px}.brand span,.menu-group,.menu-item span.txt,.sider-footer{display:none}.layout{margin-left:88px;width:calc(100% - 88px)}.grid.cols-4{grid-template-columns:repeat(2,1fr)}.split,.split.right,.unit-layout,.schema-detail{grid-template-columns:1fr}.drawer{width:min(94vw,560px)}}
+    @media(max-width:760px){.mobile-note{display:block;padding:10px;background:#fffbe6;color:#ad6800}.content{padding:14px}.grid.cols-4,.grid.cols-3,.grid.cols-2,.form{grid-template-columns:1fr}.topbar{padding:0 12px}.select.project{display:none}}
+  </style>
+</head>
+<body>
+<div class="mobile-note">当前原型为桌面端高保真设计，移动端仅做响应式预览。</div>
+<div class="app">
+  <aside class="sider">
+    <div class="brand"><div class="brand-logo">本</div><span>标准本体平台</span></div>
+    <nav class="menu" id="menu">
+      <div class="menu-group">工作台</div>
+      <div class="menu-item active" data-page="dashboard"><span class="dot">⌘</span><span class="txt">总览仪表盘</span></div>
+      <div class="menu-item" data-page="project"><span class="dot">▣</span><span class="txt">本体工程</span></div>
+      <div class="menu-group">国标 Schema 建模</div>
+      <div class="menu-item" data-page="namespace"><span class="dot">#</span><span class="txt">命名空间与 IRI</span></div>
+      <div class="menu-item" data-page="entity"><span class="dot">◇</span><span class="txt">实体类型管理</span></div>
+      <div class="menu-item" data-page="data"><span class="dot">≡</span><span class="txt">数据属性管理</span></div>
+      <div class="menu-item" data-page="object"><span class="dot">↗</span><span class="txt">对象属性管理</span></div>
+      <div class="menu-item" data-page="axiom"><span class="dot">✓</span><span class="txt">公理规则管理</span></div>
+      <div class="menu-item" data-page="unit"><span class="dot">℃</span><span class="txt">单位字典管理</span></div>
+      <div class="menu-group">实例、校验与交换</div>
+      <div class="menu-item" data-page="instance"><span class="dot">✎</span><span class="txt">实例建模工作台</span></div>
+      <div class="menu-item" data-page="validation"><span class="dot">!</span><span class="txt">校验报告</span></div>
+      <div class="menu-item" data-page="graph"><span class="dot">◎</span><span class="txt">图谱可视化</span></div>
+      <div class="menu-item" data-page="exchange"><span class="dot">⇄</span><span class="txt">导入导出</span></div>
+      <div class="menu-item" data-page="extension"><span class="dot">＋</span><span class="txt">扩展管理</span></div>
+    </nav>
+    <div class="sider-footer">GB/T 48000.3—2026<br/>v1.3 高保真原型</div>
+  </aside>
+
+  <main class="layout">
+    <header class="topbar">
+      <div class="crumb"><span>标准数字化</span><span>/</span><b id="crumbTitle">总览仪表盘</b></div>
+      <div class="top-actions">
+        <select class="select project"><option>GB/T 31486—2024 动力蓄电池</option><option>行业扩展示例</option></select>
+        <button class="btn" id="btnGlobalValidate">全量校验</button>
+        <button class="btn primary" id="btnGlobalExport">导出 Turtle</button>
+        <div class="avatar">游</div>
+      </div>
+    </header>
+
+    <div class="content">
+      <section class="page active" id="page-dashboard">
+        <div class="page-title"><div><h1>标准本体建模工作台</h1><p>以国标核心 Schema 为边界，采用受控表单、字典引用与前置校验减少随意录入。</p></div><button class="btn primary" data-open-drawer="project">新建本体工程</button></div>
+        <div class="grid cols-4">
+          <div class="card stat"><div class="label">核心实体类型</div><div class="num">18</div><div class="hint"><span class="tag blue">国标内置</span> 已补齐 Term</div></div>
+          <div class="card stat"><div class="label">附录C数据属性</div><div class="num">47</div><div class="hint"><span class="tag green">100%</span> 另含术语直采属性</div></div>
+          <div class="card stat"><div class="label">核心对象属性</div><div class="num">34</div><div class="hint"><span class="tag blue">方向已校准</span> 表1映射</div></div>
+          <div class="card stat"><div class="label">校验状态</div><div class="num" style="color:var(--success)">0</div><div class="hint"><span class="tag green">无错误</span> 可发布导出</div></div>
+        </div>
+        <div class="grid cols-2" style="margin-top:16px">
+          <div class="card"><div class="card-hd"><h3>国标符合度</h3><span class="tag green">通过</span></div><div class="card-bd">
+            <div class="kv"><div class="k">形式化</div><div><div class="progress"><span style="width:100%"></span></div></div><div class="k">核心Schema</div><div><div class="progress"><span style="width:100%"></span></div></div><div class="k">公理规则</div><div><div class="progress"><span style="width:92%"></span></div></div><div class="k">附录D复现</div><div><div class="progress"><span style="width:88%"></span></div></div></div>
+          </div></div>
+          <div class="card"><div class="card-hd"><h3>最近活动</h3><button class="btn">查看审计</button></div><div class="card-bd timeline">
+            <div class="tl"><b>修正 unit/measurementUnit 单位引用</b><div class="muted">附录C unit 与附录D measurementUnit 统一映射到单位字典 percent(%)，导出为字面量。</div></div>
+            <div class="tl"><b>执行全量 SHACL 校验</b><div class="muted">34 条对象属性域/值域、7 条核心公理通过。</div></div>
+            <div class="tl"><b>新增行业扩展命名空间</b><div class="muted">http://example.org/battery-extension#</div></div>
+          </div></div>
+        </div>
+      </section>
+
+      <section class="page" id="page-project">
+        <div class="page-title"><div><h1>本体工程</h1><p>一个工程对应一个标准或标准族，保存 Schema、实例、校验报告与导出配置。</p></div><button class="btn primary" data-open-drawer="project">新建工程</button></div>
+        <div class="card"><div class="card-hd"><h3>工程列表</h3><div class="toolbar"><input class="input" placeholder="搜索标准编号/名称"/><button class="btn">筛选</button></div></div><div class="card-bd"><table class="table"><thead><tr><th>工程名称</th><th>命名空间</th><th>状态</th><th>实例数</th><th>最近校验</th><th>操作</th></tr></thead><tbody><tr><td><b>GB/T 31486—2024 动力蓄电池</b><br/><span style="color:var(--muted)">附录D验收工程</span></td><td>std31486:</td><td><span class="tag green">可发布</span></td><td>32</td><td>0 Error / 2 Warning</td><td><button class="btn" data-page-link="instance">进入建模</button></td></tr><tr><td><b>电池行业扩展模块</b><br/><span style="color:var(--muted)">扩展命名空间</span></td><td>battery:</td><td><span class="tag gold">草稿</span></td><td>0</td><td>未校验</td><td><button class="btn" data-page-link="extension">配置扩展</button></td></tr></tbody></table></div></div>
+      </section>
+
+      <section class="page" id="page-namespace">
+        <div class="page-title"><div><h1>命名空间与 IRI 管理</h1><p>核心命名空间只读，扩展必须使用独立命名空间，避免污染国标核心定义。</p></div><button class="btn primary" data-open-drawer="namespace">新增扩展命名空间</button></div>
+        <div class="card"><div class="card-bd"><table class="table"><thead><tr><th>Prefix</th><th>URI</th><th>范围</th><th>默认</th><th>IRI生成规则</th><th>操作</th></tr></thead><tbody><tr><td><b>std</b></td><td>http://example.org/standard-ontology#</td><td><span class="tag blue">国标内置 🔒</span></td><td>是</td><td>Class首字母大写，Property首字母小写</td><td><button class="btn">查看</button></td></tr><tr><td><b>battery</b></td><td>http://example.org/battery-extension#</td><td><span class="tag purple">扩展</span></td><td>否</td><td>扩展本地标识符唯一</td><td><button class="btn">编辑</button></td></tr></tbody></table></div></div>
+      </section>
+
+      <section class="page" id="page-entity">
+        <div class="page-title"><div><h1>实体类型管理</h1><p>附录B核心实体类型树 + 行业扩展子类。核心类型锁定，只能扩展不可改语义。</p></div><button class="btn primary" data-open-drawer="entity">新增扩展实体类型</button></div>
+        <div class="split">
+          <div class="card"><div class="card-hd"><h3>实体类型树</h3><span class="tag blue">18核心</span></div><div class="card-bd tree" id="entityTree">
+            <ul><li class="selected">标准实体 <span>🔒</span></li><ul><li>术语标准</li><li>试验标准</li><li>评价标准</li></ul><li>标准化对象 <span>🔒</span></li><li>术语 Term <span class="tag green">v1.3补齐</span></li><li>信息单元 <span>🔒</span></li><ul><li>条款 Clause</li><li>附加信息</li></ul><li>约束逻辑 Constraint <span>🔒</span></li><li>行动 ActionClass <span>🔒</span></li><li>外部约束 ExternalResource <span>🔒</span></li></ul>
+          </div></div>
+          <div class="grid">
+            <div class="card"><div class="card-hd"><h3>标准实体 Standard</h3><div class="toolbar"><span class="tag blue">国标内置 🔒</span><button class="btn">影响分析</button></div></div><div class="card-bd schema-detail"><div class="kv"><div class="k">IRI</div><div>std:Standard</div><div class="k">定义</div><div>标准化文件的核心根节点，包含标准元数据和技术要素的完整描述。</div><div class="k">父类</div><div>owl:Thing</div><div class="k">子类</div><div>术语标准、符号标准、分类标准、试验标准、规范标准、规程标准、指南标准、评价标准</div></div><div><h4>继承的数据属性</h4><div class="tag gray">standardNumber</div> <div class="tag gray">documentName</div> <div class="tag gray">issuedDate</div> <div class="tag gray">effectiveDate</div><h4>对象属性</h4><div class="tag blue">standardizes → 标准化对象</div> <div class="tag blue">hasStructuralElement → 层次</div></div></div></div>
+            <div class="card"><div class="card-hd"><h3>扩展约束</h3></div><div class="card-bd"><div class="validation-list"><div class="vitem ok"><b>允许</b> 在扩展命名空间下新增“电池标准”作为试验标准子类。</div><div class="vitem error"><b>禁止</b> 修改 std:Standard 的定义、IRI、父类或删除内置属性。</div></div></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="page-data">
+        <div class="page-title"><div><h1>数据属性管理</h1><p>附录C 47项 + 术语条款直采属性。值域采用枚举、正则、日期、单位分类等标准化配置。</p></div><button class="btn primary" data-open-drawer="data">新增扩展数据属性</button></div>
+        <div class="card"><div class="card-hd"><h3>数据属性清单</h3><div class="toolbar"><select class="select"><option>全部定义域</option><option>标准实体</option><option>约束逻辑</option><option>术语</option></select><input class="input" placeholder="搜索属性名/IRI"/></div></div><div class="card-bd"><table class="table"><thead><tr><th>属性</th><th>定义域</th><th>值域</th><th>标准化约束</th><th>范围</th><th>操作</th></tr></thead><tbody><tr><td><b>standardNumber</b><br/>文件编号</td><td>Standard</td><td>TEXT</td><td>唯一；标准编号格式</td><td><span class="tag blue">国标内置 🔒</span></td><td><button class="btn" data-open-drawer="dataDetail">查看</button></td></tr><tr><td><b>issuedDate</b><br/>发布日期</td><td>Standard</td><td>DATE</td><td>UI日期控件；规范值YYYYMMDD；导出xsd:date</td><td><span class="tag blue">国标内置 🔒</span></td><td><button class="btn">查看</button></td></tr><tr><td><b>measurementUnit</b><br/>测量单位</td><td>Constraint</td><td>UNIT_REF</td><td>单位字典引用；序列化为符号字面量</td><td><span class="tag green">治理增强</span></td><td><button class="btn" data-page-link="unit">单位字典</button></td></tr><tr><td><b>termName</b><br/>术语名称</td><td>Term</td><td>TEXT</td><td>第6.2.5.1条款直采</td><td><span class="tag green">v1.3补齐</span></td><td><button class="btn">查看</button></td></tr></tbody></table></div></div>
+      </section>
+
+      <section class="page" id="page-object">
+        <div class="page-title"><div><h1>对象属性管理</h1><p>国标表1定义的34个核心对象属性，强制域/值域选择，避免关系方向错误。</p></div><button class="btn primary" data-open-drawer="object">新增扩展对象属性</button></div>
+        <div class="card"><div class="card-bd"><table class="table"><thead><tr><th>对象属性</th><th>定义域</th><th>值域</th><th>方向校验</th><th>语义说明</th></tr></thead><tbody><tr><td><b>standardizes</b><br/>标准化对象</td><td>标准实体</td><td>标准化对象</td><td><span class="tag green">已校准</span></td><td>标准所规范的主题对象。禁止从标准化对象反向连标准实体。</td></tr><tr><td><b>describesAction</b><br/>描述行动</td><td>信息单元</td><td>行动</td><td><span class="tag green">已校准</span></td><td>条款规定需执行的动作或步骤。</td></tr><tr><td><b>hasClause</b><br/>包含条款</td><td>要素/层次</td><td>条款</td><td><span class="tag blue">国标内置</span></td><td>章或结构层次包含具体条款。</td></tr><tr><td><b>usesTerm</b><br/>提及术语</td><td>信息单元</td><td>术语</td><td><span class="tag green">Term可用</span></td><td>v1.3补齐术语实体后可完整建模。</td></tr></tbody></table></div></div>
+      </section>
+
+      <section class="page" id="page-axiom">
+        <div class="page-title"><div><h1>公理规则管理</h1><p>OWL公理 + SHACL约束双轨表达。Error级规则阻断发布与导出。</p></div><button class="btn primary" data-open-drawer="axiom">新增扩展规则</button></div>
+        <div class="grid cols-3"><div class="card stat"><div class="label">实体类型规则</div><div class="num">2</div><div class="hint">不相交 / 全局唯一标识</div></div><div class="card stat"><div class="label">属性规则</div><div class="num">5</div><div class="hint">唯一 / 日期 / 枚举 / 取值 / 单位</div></div><div class="card stat"><div class="label">关系规则</div><div class="num">4</div><div class="hint">功能 / 替代 / 层次 / 引用区分</div></div></div>
+        <div class="card" style="margin-top:16px"><div class="card-bd"><table class="table"><thead><tr><th>规则</th><th>分类</th><th>目标</th><th>执行时机</th><th>状态</th></tr></thead><tbody><tr><td><b>实施日期不得早于发布日期</b></td><td>属性规则</td><td>issuedDate/effectiveDate</td><td>保存、发布、导出</td><td><span class="tag green">启用</span></td></tr><tr><td><b>单位一致性约束</b></td><td>属性规则</td><td>Constraint.max/min/measurementUnit</td><td>保存、导入、发布</td><td><span class="tag green">启用</span></td></tr><tr><td><b>standardizes方向约束</b></td><td>关系规则</td><td>Standard → StandardizationObject</td><td>关系连线时</td><td><span class="tag green">启用</span></td></tr></tbody></table></div></div>
+      </section>
+
+      <section class="page" id="page-unit">
+        <div class="page-title"><div><h1>单位字典管理</h1><p>单位分类 + 单位条目双层治理。内置 V/W/℃/%，支持行业扩展单位。</p></div><div class="toolbar"><button class="btn" id="openConvert">换算工具</button><button class="btn primary" data-open-modal="unit">新增扩展单位</button></div></div>
+        <div class="unit-layout">
+          <div class="card"><div class="card-hd"><h3>单位分类</h3><button class="btn">新增分类</button></div><div class="card-bd tree" id="unitTree"><ul><li class="selected" data-unit-cat="dimensionless">无量纲/百分比</li><li data-unit-cat="voltage">电压</li><li data-unit-cat="power">功率</li><li data-unit-cat="temperature">温度</li><li data-unit-cat="current">电流</li><li data-unit-cat="length">长度</li><li data-unit-cat="battery">容量</li></ul></div></div>
+          <div class="card"><div class="card-hd"><h3 id="unitCatTitle">无量纲/百分比</h3><div class="toolbar"><input class="input" placeholder="搜索符号，如 %"/><span class="tag blue">实例可引用</span></div></div><div class="card-bd"><div id="unitPills"><span class="unit-pill primary">%</span><span class="unit-pill">ratio</span></div><table class="table" style="margin-top:14px"><thead><tr><th>符号</th><th>名称</th><th>代码</th><th>内置</th><th>引用场景</th><th>操作</th></tr></thead><tbody id="unitRows"><tr><td><b>%</b></td><td>百分比</td><td>percent</td><td><span class="tag blue">国标附录D 🔒</span></td><td>measurementUnit</td><td><button class="btn">查看</button></td></tr></tbody></table></div></div>
+        </div>
+      </section>
+
+      <section class="page" id="page-instance">
+        <div class="page-title"><div><h1>实例建模工作台</h1><p>附录D 9步向导：Schema驱动表单、对象关系选择器、单位引用校验与图谱预览。</p></div><div class="toolbar"><button class="btn" id="simulateError">模拟单位错误</button><button class="btn primary" id="saveInstance">保存并校验</button></div></div>
+        <div class="card"><div class="card-bd"><div class="steps" id="steps"><div class="step done">1 标准实体</div><div class="step done">2 层次结构</div><div class="step done">3 核心对象</div><div class="step active">5 约束逻辑</div><div class="step">7 条款关联</div><div class="step">9 导出验证</div></div>
+          <div class="split right"><div><div class="card"><div class="card-hd"><h3>Constraint 实例：Capacity_Constraint_1</h3><span class="tag green">rdf:type std:Constraint</span></div><div class="card-bd"><div class="form"><div class="field"><label>实例 IRI</label><input value="std:Capacity_Constraint_1" readonly></div><div class="field"><label>constraintType</label><select><option>数值区间</option><option>枚举值</option><option>逻辑表达式</option></select></div><div class="field"><label>minValue</label><input value="100"></div><div class="field"><label>maxValue</label><input value="110"></div><div class="field" id="unitField"><label>measurementUnit（单位字典引用）</label><select id="unitSelect"><option value="percent">无量纲 / 百分比 (%)</option><option value="watt">功率 / 瓦特 (W)</option><option value="volt">电压 / 伏特 (V)</option></select><div class="help">导出 Turtle 时序列化为 :measurementUnit "%"。</div></div><div class="field"><label>comparedTo</label><input value="额定容量"></div></div></div></div>
+            <div class="card" style="margin-top:16px"><div class="card-hd"><h3>对象关系</h3><button class="btn">新增关系</button></div><div class="card-bd"><table class="table"><tbody><tr><td>std:Discharge_Capacity_Prop</td><td><b>imposesConstraint</b></td><td>std:Capacity_Constraint_1</td></tr><tr><td>std:Discharge_Capacity_Requirement</td><td><b>specifiesCharacteristic</b></td><td>std:Discharge_Capacity_Prop</td></tr></tbody></table></div></div></div>
+            <aside class="card"><div class="card-hd"><h3>实时校验</h3><span class="tag green" id="valSummary">0 Error</span></div><div class="card-bd validation-list" id="liveValidation"><div class="vitem ok"><b>单位引用有效</b> percent(%) 属于无量纲分类。</div><div class="vitem ok"><b>数值区间合法</b> minValue ≤ maxValue。</div><div class="vitem ok"><b>导出兼容</b> measurementUnit 将输出 "%" 字面量。</div></div></aside>
+          </div>
+        </div></div>
+      </section>
+
+      <section class="page" id="page-validation">
+        <div class="page-title"><div><h1>校验报告</h1><p>SHACL约束、OWL轻量公理与扩展合法性统一报告，点击问题定位到字段或图谱节点。</p></div><button class="btn primary" id="runValidation">重新校验</button></div>
+        <div class="grid cols-4"><div class="card stat"><div class="label">Error</div><div class="num" style="color:var(--success)">0</div></div><div class="card stat"><div class="label">Warning</div><div class="num" style="color:var(--warning)">2</div></div><div class="card stat"><div class="label">Info</div><div class="num">12</div></div><div class="card stat"><div class="label">耗时</div><div class="num">1.8s</div></div></div>
+        <div class="card" style="margin-top:16px"><div class="card-bd validation-list"><div class="vitem warn" data-page-link="data"><b>Warning：阈值范围兼容导入格式</b> thresholdRange 导入值含单位“80~100W”，建议拆分为数值范围 + measurementUnit。</div><div class="vitem warn" data-page-link="entity"><b>Warning：评价标准子类来源</b> 第6.2.2正文列举“评价标准等”，附录B表B.1子类未列出，已作为可选内置子类标注。</div><div class="vitem ok"><b>Pass：standardizes方向</b> std:GB-T_31486-2024 → std:BatteryStandardizationObject。</div></div></div>
+      </section>
+
+      <section class="page" id="page-graph">
+        <div class="page-title"><div><h1>图谱可视化</h1><p>按实体类型着色，边标签显示对象属性；点击节点查看实例摘要，支持从校验报告定位。</p></div><div class="toolbar"><button class="btn">过滤</button><button class="btn">导出SVG</button></div></div>
+        <div class="graph-wrap" id="graph">
+          <div class="graph-toolbar toolbar"><select class="select"><option>附录D实例子图</option><option>Schema关系图</option></select><button class="btn">高亮约束链</button></div>
+          <div class="edge" style="left:174px;top:150px;width:230px;transform:rotate(16deg)"><span>standardizes</span></div>
+          <div class="edge" style="left:174px;top:184px;width:245px;transform:rotate(42deg)"><span>hasClause</span></div>
+          <div class="edge" style="left:468px;top:288px;width:230px;transform:rotate(-28deg)"><span>specifiesCharacteristic</span></div>
+          <div class="edge" style="left:690px;top:190px;width:170px;transform:rotate(20deg)"><span>imposesConstraint</span></div>
+          <div class="node-card core" style="left:50px;top:118px" data-node="Standard"><b>GB/T 31486—2024</b><br/><span class="tag blue">Standard</span></div>
+          <div class="node-card" style="left:420px;top:195px" data-node="Clause"><b>5.4 室温放电容量</b><br/><span class="tag gray">Clause</span></div>
+          <div class="node-card" style="left:415px;top:82px" data-node="Object"><b>动力蓄电池</b><br/><span class="tag gray">StandardizationObject</span></div>
+          <div class="node-card" style="left:700px;top:108px" data-node="Characteristic"><b>室温放电容量</b><br/><span class="tag purple">Property</span></div>
+          <div class="node-card warn" style="left:880px;top:175px" data-node="Constraint"><b>Capacity_Constraint_1</b><br/><span class="tag green">% 单位已引用</span></div>
+        </div>
+      </section>
+
+      <section class="page" id="page-exchange">
+        <div class="page-title"><div><h1>导入导出</h1><p>支持 Turtle、JSON-LD、RDF/XML、Excel/JSON导入；导出前强制全量校验。</p></div><button class="btn primary">执行导出</button></div>
+        <div class="card"><div class="tabs"><div class="tab active" data-tab="turtle">Turtle预览</div><div class="tab" data-tab="jsonld">JSON-LD</div><div class="tab" data-tab="import">导入预检</div></div><div class="card-bd"><div class="tab-panel active" id="tab-turtle"><pre class="code">@prefix : &lt;http://example.org/standard-ontology#&gt; .
+@prefix std: &lt;http://example.org/standard/GB-T-31486-2024/&gt; .
+
+std:GB-T_31486-2024 a :Standard ;
+  :standardNumber "GB/T 31486—2024" ;
+  :issuedDate "2024-09-29"^^xsd:date ;
+  :standardizes std:BatteryStandardizationObject .
+
+std:Capacity_Constraint_1 a :Constraint ;
+  :constraintType "数值区间" ;
+  :minValue "100" ;
+  :maxValue "110" ;
+  :measurementUnit "%" .</pre></div><div class="tab-panel" id="tab-jsonld"><div class="empty">JSON-LD 预览区域</div></div><div class="tab-panel" id="tab-import"><table class="table"><thead><tr><th>导入项</th><th>解析结果</th><th>治理动作</th></tr></thead><tbody><tr><td>measurementUnit "%"</td><td><span class="tag green">解析为 percent</span></td><td>绑定单位字典，无需新建文本枚举</td></tr><tr><td>日期 20240929</td><td><span class="tag green">合法</span></td><td>导出xsd:date时转为2024-09-29</td></tr></tbody></table></div></div></div>
+      </section>
+
+      <section class="page" id="page-extension">
+        <div class="page-title"><div><h1>扩展管理</h1><p>行业扩展以模块化方式存在，不修改核心定义；发布前执行扩展合法性校验。</p></div><button class="btn primary">新增扩展模块</button></div>
+        <div class="grid cols-3"><div class="card stat"><div class="label">扩展实体类型</div><div class="num">3</div><div class="hint">battery:BatteryStandard</div></div><div class="card stat"><div class="label">扩展属性</div><div class="num">8</div><div class="hint">均在扩展命名空间</div></div><div class="card stat"><div class="label">核心污染</div><div class="num" style="color:var(--success)">0</div><div class="hint">通过合法性校验</div></div></div>
+        <div class="card" style="margin-top:16px"><div class="card-bd"><table class="table"><thead><tr><th>模块</th><th>命名空间</th><th>依赖核心</th><th>状态</th><th>操作</th></tr></thead><tbody><tr><td>电池行业扩展</td><td>battery:</td><td>std:TestStandard / std:Constraint</td><td><span class="tag gold">草稿</span></td><td><button class="btn">校验</button></td></tr></tbody></table></div></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="drawer-mask" id="drawerMask"><div class="drawer"><div class="hd"><b id="drawerTitle">抽屉</b><button class="close" id="closeDrawer">×</button></div><div class="bd" id="drawerBody"></div><div class="ft"><button class="btn" id="cancelDrawer">取消</button><button class="btn primary" id="submitDrawer">提交并校验</button></div></div></div>
+<div class="modal-mask" id="modalMask"><div class="modal"><div class="hd"><b id="modalTitle">新增扩展单位</b><button class="close" id="closeModal">×</button></div><div class="bd"><div class="form one"><div class="field"><label>单位分类</label><select><option>无量纲/百分比</option><option>电压</option><option>功率</option></select></div><div class="field"><label>单位符号</label><input placeholder="如 ppm"/></div><div class="field"><label>单位代码</label><input placeholder="如 ppm"/></div><div class="field"><label>命名空间</label><select><option>battery: 扩展命名空间</option></select></div></div></div><div class="ft"><button class="btn" id="cancelModal">取消</button><button class="btn primary" id="submitModal">保存单位</button></div></div></div>
+<div class="toast" id="toast">操作成功</div>
+<script>
+  const $ = s => document.querySelector(s); const $$ = s => Array.from(document.querySelectorAll(s));
+  const pageTitles = {dashboard:'总览仪表盘',project:'本体工程',namespace:'命名空间与 IRI',entity:'实体类型管理',data:'数据属性管理',object:'对象属性管理',axiom:'公理规则管理',unit:'单位字典管理',instance:'实例建模工作台',validation:'校验报告',graph:'图谱可视化',exchange:'导入导出',extension:'扩展管理'};
+  function showPage(page){ $$('.menu-item').forEach(i=>i.classList.toggle('active',i.dataset.page===page)); $$('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+page)); $('#crumbTitle').textContent=pageTitles[page]||page; window.scrollTo({top:0,behavior:'smooth'}); }
+  $('#menu').addEventListener('click',e=>{const item=e.target.closest('.menu-item'); if(item) showPage(item.dataset.page);});
+  document.body.addEventListener('click',e=>{ const link=e.target.closest('[data-page-link]'); if(link) showPage(link.dataset.pageLink); });
+  function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); }
+  const drawerTemplates={
+    project:`<div class="steps"><div class="step active">基础信息</div><div class="step">命名空间</div><div class="step">初始化Schema</div></div><div class="form one"><div class="field"><label>工程名称</label><input value="GB/T 31486—2024 动力蓄电池"></div><div class="field"><label>标准编号</label><input value="GB/T 31486—2024"></div><div class="field"><label>基础命名空间</label><input value="http://example.org/standard/GB-T-31486-2024/"></div><div class="field"><label>初始化方式</label><select><option>加载GB/T 48000.3核心Schema</option></select></div></div>`,
+    namespace:`<div class="form one"><div class="field"><label>Prefix</label><input placeholder="如 battery"></div><div class="field"><label>URI</label><input placeholder="http://example.org/battery-extension#"></div><div class="field"><label>说明</label><textarea placeholder="用于电池行业扩展，不修改核心命名空间"></textarea></div></div>`,
+    entity:`<div class="steps"><div class="step active">基础信息</div><div class="step">继承关系</div><div class="step">属性集</div><div class="step">校验</div></div><div class="form"><div class="field"><label>命名空间</label><select><option>battery: 扩展命名空间</option></select></div><div class="field"><label>父类</label><select><option>std:TestStandard</option><option>std:Constraint</option></select></div><div class="field"><label>名称 Name</label><input placeholder="BatteryTestStandard"></div><div class="field"><label>中文标签</label><input placeholder="电池试验标准"></div><div class="field" style="grid-column:1/-1"><label>定义</label><textarea placeholder="给出实体类型定义，不能与核心定义矛盾"></textarea></div></div>`,
+    data:`<div class="steps"><div class="step active">基础信息</div><div class="step">定义域/值域</div><div class="step">约束</div><div class="step">预览</div></div><div class="form"><div class="field"><label>命名空间</label><select><option>battery:</option></select></div><div class="field"><label>Name</label><input placeholder="batteryCapacity"></div><div class="field"><label>定义域</label><select><option>battery:BatteryCell</option><option>std:Constraint</option></select></div><div class="field"><label>值域</label><select><option>NUMERIC</option><option>TEXT</option><option>UNIT_REF</option></select></div><div class="field"><label>单位分类（数值型可选）</label><select><option>容量 battery</option><option>无</option></select></div><div class="field"><label>是否唯一</label><select><option>否</option><option>是</option></select></div></div>`,
+    dataDetail:`<div class="kv"><div class="k">IRI</div><div>std:standardNumber</div><div class="k">属性类型</div><div>owl:DatatypeProperty</div><div class="k">定义域</div><div>std:Standard</div><div class="k">值域</div><div>TEXT</div><div class="k">约束</div><div>唯一；标准编号格式；核心只读</div></div><hr/><pre class="code">std:standardNumber a owl:DatatypeProperty ;
+  rdfs:domain std:Standard ;
+  rdfs:range xsd:string .</pre>`,
+    object:`<div class="form"><div class="field"><label>命名空间</label><select><option>battery:</option></select></div><div class="field"><label>Name</label><input placeholder="testsBattery"></div><div class="field"><label>定义域 Domain</label><select><option>std:Clause</option></select></div><div class="field"><label>值域 Range</label><select><option>battery:BatteryCell</option></select></div><div class="field"><label>特性</label><select><option>普通对象属性</option><option>功能性 Functional</option></select></div><div class="field" style="grid-column:1/-1"><label>语义说明</label><textarea></textarea></div></div>`,
+    axiom:`<div class="form one"><div class="field"><label>规则名称</label><input placeholder="容量单位一致性"></div><div class="field"><label>规则分类</label><select><option>属性规则</option><option>关系规则</option></select></div><div class="field"><label>SHACL Shape</label><textarea placeholder="输入或生成SHACL片段"></textarea></div></div>`
+  };
+  function openDrawer(type){ $('#drawerTitle').textContent={project:'新建本体工程',namespace:'新增扩展命名空间',entity:'新增扩展实体类型',data:'新增扩展数据属性',dataDetail:'数据属性详情',object:'新增扩展对象属性',axiom:'新增扩展规则'}[type]||'配置'; $('#drawerBody').innerHTML=drawerTemplates[type]||'<div class="empty">配置内容</div>'; $('#drawerMask').style.display='block'; }
+  document.body.addEventListener('click',e=>{const btn=e.target.closest('[data-open-drawer]'); if(btn) openDrawer(btn.dataset.openDrawer);});
+  function closeDrawer(){ $('#drawerMask').style.display='none'; }
+  $('#closeDrawer').onclick=closeDrawer; $('#cancelDrawer').onclick=closeDrawer; $('#submitDrawer').onclick=()=>{closeDrawer();toast('已提交，局部校验通过');};
+  document.body.addEventListener('click',e=>{const btn=e.target.closest('[data-open-modal]'); if(btn){$('#modalMask').style.display='flex';}});
+  function closeModal(){ $('#modalMask').style.display='none'; } $('#closeModal').onclick=closeModal; $('#cancelModal').onclick=closeModal; $('#submitModal').onclick=()=>{closeModal();toast('扩展单位已保存');};
+  $('#btnGlobalValidate').onclick=()=>toast('全量校验完成：0 Error / 2 Warning'); $('#btnGlobalExport').onclick=()=>{showPage('exchange');toast('已生成 Turtle 预览');}; $('#runValidation').onclick=()=>toast('校验任务已完成');
+  $$('.tab').forEach(tab=>tab.onclick=()=>{ $$('.tab').forEach(t=>t.classList.remove('active')); $$('.tab-panel').forEach(p=>p.classList.remove('active')); tab.classList.add('active'); $('#tab-'+tab.dataset.tab).classList.add('active'); });
+  const unitData={dimensionless:{title:'无量纲/百分比',pills:['%','ratio'],rows:[['%','百分比','percent','国标附录D 🔒','measurementUnit'],['ratio','比值','ratio','扩展','数值比']]},voltage:{title:'电压',pills:['V','mV'],rows:[['V','伏特','volt','表C.41 🔒','measurementUnit'],['mV','毫伏','millivolt','扩展','电压约束']]},power:{title:'功率',pills:['W','kW'],rows:[['W','瓦特','watt','表C.41 🔒','measurementUnit'],['kW','千瓦','kilowatt','常用SI','功率约束']]},temperature:{title:'温度',pills:['℃','K'],rows:[['℃','摄氏度','celsius','表C.41 🔒','温度约束'],['K','开尔文','kelvin','常用SI','温度约束']]},current:{title:'电流',pills:['A'],rows:[['A','安培','ampere','常用SI','电流约束']]},length:{title:'长度',pills:['m','mm','cm'],rows:[['m','米','metre','常用SI','尺寸约束'],['mm','毫米','millimetre','常用SI','尺寸约束']]},battery:{title:'容量',pills:['Ah','Wh'],rows:[['Ah','安时','ampereHour','扩展','电池容量'],['Wh','瓦时','wattHour','扩展','电池能量']]}};
+  $('#unitTree')?.addEventListener('click',e=>{const li=e.target.closest('li[data-unit-cat]'); if(!li) return; $$('#unitTree li').forEach(x=>x.classList.remove('selected')); li.classList.add('selected'); const d=unitData[li.dataset.unitCat]; $('#unitCatTitle').textContent=d.title; $('#unitPills').innerHTML=d.pills.map((p,i)=>`<span class="unit-pill ${i===0?'primary':''}">${p}</span>`).join(''); $('#unitRows').innerHTML=d.rows.map(r=>`<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td>${r[2]}</td><td><span class="tag ${r[3].includes('🔒')?'blue':'purple'}">${r[3]}</span></td><td>${r[4]}</td><td><button class="btn">查看</button></td></tr>`).join('');});
+  $('#simulateError').onclick=()=>{ $('#unitSelect').value='watt'; $('#unitField').classList.add('error'); $('#unitField .help').textContent='错误：当前容量百分比约束应引用无量纲/百分比，不应选择功率单位 W。'; $('#valSummary').textContent='1 Error'; $('#valSummary').className='tag red'; $('#liveValidation').innerHTML='<div class="vitem error"><b>单位一致性错误</b> maxValue/minValue 当前语义为百分比范围，但 measurementUnit 引用了 W。</div><div class="vitem ok"><b>数值区间合法</b> minValue ≤ maxValue。</div>'; };
+  $('#saveInstance').onclick=()=>{ $('#unitSelect').value='percent'; $('#unitField').classList.remove('error'); $('#unitField .help').textContent='导出 Turtle 时序列化为 :measurementUnit "%"。'; $('#valSummary').textContent='0 Error'; $('#valSummary').className='tag green'; $('#liveValidation').innerHTML='<div class="vitem ok"><b>单位引用有效</b> percent(%) 属于无量纲分类。</div><div class="vitem ok"><b>数值区间合法</b> minValue ≤ maxValue。</div><div class="vitem ok"><b>导出兼容</b> measurementUnit 将输出 "%" 字面量。</div>'; toast('实例已保存，实时校验通过'); };
+  $$('.node-card').forEach(n=>n.onclick=()=>{ $$('.node-card').forEach(x=>x.classList.remove('selected')); n.classList.add('selected'); toast('已选中节点：'+n.dataset.node); });
+  $('#openConvert').onclick=()=>toast('换算工具为可选增强；首期仅维护字典引用');
+</script>
+</body>
+</html>
