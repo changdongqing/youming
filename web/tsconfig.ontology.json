@@ -1,0 +1,14 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"noEmit": true
+	},
+	"include": [
+		"auto-imports.d.ts",
+		"src/types/**/*.d.ts",
+		"src/types/ontology/**/*.ts",
+		"src/api/ontology/entity-type.ts",
+		"src/api/ontology/namespace.ts",
+		"src/views/ontology/entity-type/index.vue"
+	]
+}

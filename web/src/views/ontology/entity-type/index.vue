@@ -167,10 +167,12 @@
 import { addEntityTypeObj, delEntityTypeObj, fetchEntityTypeById, fetchEntityTypeList, fetchEntityTypeTree, putEntityTypeObj } from '/@/api/ontology/entity-type';
 import { fetchNamespaceList } from '/@/api/ontology/namespace';
 import { useMessage, useMessageBox } from '/@/hooks/message';
+import { collectInvalidParentIds, filterEntityTypeTree } from './tree-utils';
 import type {
 	EntityType,
 	EntityTypeCreateRequest,
 	EntityTypeDetail,
+	EntityTypeLabel,
 	EntityTypeForm,
 	EntityTypeTreeNode,
 	EntityTypeUpdateRequest,
@@ -240,44 +242,15 @@ const rules = {
 
 const selectedLabel = computed(() => {
 	if (!selectedDetail.value) return '';
-	const zhLabel = selectedDetail.value.labels.find((label) => label.locale === 'zh');
+	const zhLabel = selectedDetail.value.labels.find((label: EntityTypeLabel) => label.locale === 'zh');
 	return zhLabel?.label || selectedDetail.value.labels[0]?.label || selectedDetail.value.entityType.name;
 });
 
-const filteredTree = computed<EntityTypeTreeNode[]>(() => {
-	const keyword = treeKeyword.value.trim().toLowerCase();
-	if (!keyword) return treeData.value;
-	const filterNodes = (nodes: EntityTypeTreeNode[]): EntityTypeTreeNode[] =>
-		nodes.flatMap((node) => {
-			const children = filterNodes(node.children || []);
-			const matched = node.label.toLowerCase().includes(keyword) || node.name.toLowerCase().includes(keyword);
-			return matched || children.length > 0 ? [{ ...node, children }] : [];
-		});
-	return filterNodes(treeData.value);
-});
+const filteredTree = computed<EntityTypeTreeNode[]>(() => filterEntityTypeTree(treeData.value, treeKeyword.value));
 
-const collectDescendantIds = (node: EntityTypeTreeNode, result: Set<OntologyId>) => {
-	for (const child of node.children || []) {
-		result.add(child.id);
-		collectDescendantIds(child, result);
-	}
-};
+const invalidParentIds = computed(() => collectInvalidParentIds(treeData.value, form.id));
 
-const invalidParentIds = computed(() => {
-	const invalid = new Set<OntologyId>();
-	if (!form.id) return invalid;
-	invalid.add(form.id);
-	const visit = (nodes: EntityTypeTreeNode[]) => {
-		for (const node of nodes) {
-			if (node.id === form.id) collectDescendantIds(node, invalid);
-			visit(node.children || []);
-		}
-	};
-	visit(treeData.value);
-	return invalid;
-});
-
-const parentOptions = computed(() => allTypes.value.filter((type) => !invalidParentIds.value.has(type.id)));
+const parentOptions = computed(() => allTypes.value.filter((type: EntityType) => !invalidParentIds.value.has(type.id)));
 
 const getErrorMessage = (error: unknown, fallback: string) => {
 	if (error && typeof error === 'object' && 'msg' in error) return String((error as { msg?: unknown }).msg || fallback);
@@ -361,7 +334,7 @@ const resetForm = (row?: EntityType) => {
 		});
 		return;
 	}
-	const defaultNamespace = extensionNamespaces.value.find((namespace) => namespace.isDefault === '1') || extensionNamespaces.value[0];
+	const defaultNamespace = extensionNamespaces.value.find((namespace: NamespaceOption) => namespace.isDefault === '1') || extensionNamespaces.value[0];
 	form.namespaceId = defaultNamespace?.id;
 };
 
@@ -377,7 +350,7 @@ const openDialog = (row?: EntityType) => {
 
 const syncIriPreview = () => {
 	if (isBuiltinEdit.value) return;
-	const namespace = extensionNamespaces.value.find((item) => item.id === form.namespaceId);
+	const namespace = extensionNamespaces.value.find((item: NamespaceOption) => item.id === form.namespaceId);
 	form.iri = namespace && form.name ? namespace.uri + form.name : '';
 };
 
