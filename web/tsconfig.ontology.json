@@ -9,6 +9,10 @@
 		"src/types/ontology/**/*.ts",
 		"src/api/ontology/entity-type.ts",
 		"src/api/ontology/namespace.ts",
-		"src/views/ontology/entity-type/index.vue"
+		"src/api/ontology/data-property.ts",
+		"src/types/ontology/unit.ts",
+		"src/views/ontology/entity-type/index.vue",
+		"src/views/ontology/data-property/index.vue",
+		"src/views/ontology/data-property/value-rules.ts"
 	]
 }

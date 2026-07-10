@@ -70,7 +70,10 @@
 							<el-descriptions-item label="标签">{{ selectedLabel }}</el-descriptions-item>
 							<el-descriptions-item label="定义">{{ selectedDetail.entityType.definition || '—' }}</el-descriptions-item>
 							<el-descriptions-item label="属性集">
-								<span class="text-muted">数据属性模块上线后填充</span>
+								<span v-if="applicableProperties.length === 0" class="text-muted">该实体类型暂无适用数据属性</span>
+								<el-tag v-for="prop in applicableProperties" :key="prop.dataProperty.id" class="mr6" :type="prop.inherited ? 'info' : 'success'">
+									{{ prop.displayName }}{{ prop.inherited ? '（继承）' : '' }}
+								</el-tag>
 							</el-descriptions-item>
 							<el-descriptions-item label="父类">
 								<span v-if="selectedDetail.parents.length">
@@ -165,6 +168,7 @@
 
 <script lang="ts" name="ontologyEntityType" setup>
 import { addEntityTypeObj, delEntityTypeObj, fetchEntityTypeById, fetchEntityTypeList, fetchEntityTypeTree, putEntityTypeObj } from '/@/api/ontology/entity-type';
+import { fetchDataPropertiesByDomain } from '/@/api/ontology/data-property';
 import { fetchNamespaceList } from '/@/api/ontology/namespace';
 import { useMessage, useMessageBox } from '/@/hooks/message';
 import { collectInvalidParentIds, filterEntityTypeTree } from './tree-utils';
@@ -207,6 +211,7 @@ const extensionNamespaces = ref<NamespaceOption[]>([]);
 const treeKeyword = ref('');
 const selectedDetail = ref<EntityTypeDetail>();
 const selectedId = ref<OntologyId>();
+const applicableProperties = ref<any[]>([]);
 
 const treeProps = { label: 'label', children: 'children' };
 
@@ -289,7 +294,17 @@ const loadDetail = async (id: OntologyId) => {
 	detailLoading.value = true;
 	try {
 		const response = await fetchEntityTypeById(id);
-		if (requestSequence === detailRequestSequence) selectedDetail.value = response.data as EntityTypeDetail;
+		if (requestSequence === detailRequestSequence) {
+			selectedDetail.value = response.data as EntityTypeDetail;
+			try {
+				const propResponse = await fetchDataPropertiesByDomain(id);
+				if (requestSequence === detailRequestSequence) {
+					applicableProperties.value = (propResponse.data || []) as any[];
+				}
+			} catch {
+				if (requestSequence === detailRequestSequence) applicableProperties.value = [];
+			}
+		}
 	} finally {
 		if (requestSequence === detailRequestSequence) detailLoading.value = false;
 	}

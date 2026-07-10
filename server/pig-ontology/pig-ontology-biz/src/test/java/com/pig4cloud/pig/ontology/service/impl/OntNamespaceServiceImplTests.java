@@ -11,6 +11,7 @@ import com.pig4cloud.pig.ontology.entity.OntEntityType;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntUnit;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeMapper;
+import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntUnitMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -53,11 +54,14 @@ class OntNamespaceServiceImplTests {
 	@Mock
 	private OntEntityTypeMapper entityTypeMapper;
 
+	@Mock
+	private OntDataPropertyMapper dataPropertyMapper;
+
 	private OntNamespaceServiceImpl service;
 
 	@BeforeEach
 	void setUp() {
-		service = new OntNamespaceServiceImpl(unitMapper, entityTypeMapper);
+		service = new OntNamespaceServiceImpl(unitMapper, entityTypeMapper, dataPropertyMapper);
 		ReflectionTestUtils.setField(service, "baseMapper", namespaceMapper);
 	}
 

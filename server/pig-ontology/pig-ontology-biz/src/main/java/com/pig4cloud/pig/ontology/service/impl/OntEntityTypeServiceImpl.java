@@ -16,12 +16,14 @@ import com.pig4cloud.pig.ontology.entity.OntEntityTypeEquivalent;
 import com.pig4cloud.pig.ontology.entity.OntEntityTypeHierarchy;
 import com.pig4cloud.pig.ontology.entity.OntEntityTypeLabel;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
+import com.pig4cloud.pig.ontology.entity.OntDataProperty;
 import com.pig4cloud.pig.ontology.entity.OntOntologyProject;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeDisjointMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeEquivalentMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeHierarchyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeLabelMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeMapper;
+import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntOntologyProjectMapper;
 import com.pig4cloud.pig.ontology.service.OntEntityTypeService;
@@ -79,6 +81,8 @@ public class OntEntityTypeServiceImpl extends ServiceImpl<OntEntityTypeMapper, O
 	private final OntNamespaceMapper namespaceMapper;
 
 	private final OntOntologyProjectMapper ontologyProjectMapper;
+
+	private final OntDataPropertyMapper dataPropertyMapper;
 
 	@Override
 	@Transactional(rollbackFor = Exception.class)
@@ -194,6 +198,11 @@ public class OntEntityTypeServiceImpl extends ServiceImpl<OntEntityTypeMapper, O
 			.eq(OntEntityTypeDisjoint::getTypeB, id));
 		if (disjointCount > 0) {
 			return R.failed("该实体类型被不相交关系引用，不能删除");
+		}
+		long dataPropertyCount = dataPropertyMapper.selectCount(Wrappers.<OntDataProperty>lambdaQuery()
+			.eq(OntDataProperty::getDomainEntityTypeId, id));
+		if (dataPropertyCount > 0) {
+			return R.failed("该实体类型被数据属性引用为定义域，不能删除");
 		}
 		hierarchyMapper.delete(Wrappers.<OntEntityTypeHierarchy>lambdaQuery()
 			.eq(OntEntityTypeHierarchy::getChildId, id));

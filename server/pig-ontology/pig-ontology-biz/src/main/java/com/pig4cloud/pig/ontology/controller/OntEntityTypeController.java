@@ -15,7 +15,9 @@ import com.pig4cloud.pig.ontology.dto.OntEntityTypeCreateDTO;
 import com.pig4cloud.pig.ontology.dto.OntEntityTypeQuery;
 import com.pig4cloud.pig.ontology.dto.OntEntityTypeUpdateDTO;
 import com.pig4cloud.pig.ontology.entity.OntEntityType;
+import com.pig4cloud.pig.ontology.service.OntDataPropertyService;
 import com.pig4cloud.pig.ontology.service.OntEntityTypeService;
+import com.pig4cloud.pig.ontology.vo.OntApplicableDataPropertyVO;
 import com.pig4cloud.pig.ontology.vo.OntEntityTypeDetailVO;
 import com.pig4cloud.pig.ontology.vo.OntEntityTypeTreeNode;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -49,6 +51,8 @@ import java.util.List;
 public class OntEntityTypeController {
 
 	private final OntEntityTypeService ontEntityTypeService;
+
+	private final OntDataPropertyService ontDataPropertyService;
 
 	/**
 	 * 分页查询实体类型列表。
@@ -149,17 +153,17 @@ public class OntEntityTypeController {
 	}
 
 	/**
-	 * 查询实体类型的数据属性（首期返回空，数据属性模块上线后实现）。
+	 * 查询实体类型的数据属性（含继承）。
 	 * @param id 实体类型ID
-	 * @return 数据属性列表
+	 * @return 适用数据属性列表
 	 */
 	@GetMapping("/{id}/properties")
 	@HasPermission("ontology_entity_type_view")
-	public R<List<Object>> properties(@PathVariable Long id) {
+	public R<List<OntApplicableDataPropertyVO>> properties(@PathVariable Long id) {
 		if (ontEntityTypeService.getById(id) == null) {
 			return R.failed("实体类型不存在");
 		}
-		return R.ok(List.of());
+		return R.ok(ontDataPropertyService.listApplicableByDomain(id));
 	}
 
 }

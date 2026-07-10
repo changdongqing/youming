@@ -10,7 +10,9 @@ import com.pig4cloud.pig.common.core.util.R;
 import com.pig4cloud.pig.ontology.entity.OntEntityType;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntUnit;
+import com.pig4cloud.pig.ontology.entity.OntDataProperty;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeMapper;
+import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntUnitMapper;
 import com.pig4cloud.pig.ontology.service.OntNamespaceService;
@@ -43,6 +45,8 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 	private final OntUnitMapper unitMapper;
 
 	private final OntEntityTypeMapper entityTypeMapper;
+
+	private final OntDataPropertyMapper dataPropertyMapper;
 
 	@Override
 	@Transactional(rollbackFor = Exception.class)
@@ -86,6 +90,11 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 		if (entityTypeCount > 0 && !Objects.equals(old.getUri(), namespace.getUri())) {
 			return R.failed("该命名空间已被实体类型引用，命名空间URI不可修改");
 		}
+		long dataPropertyCount = dataPropertyMapper.selectCount(Wrappers.<OntDataProperty>lambdaQuery()
+			.eq(OntDataProperty::getNamespaceId, old.getId()));
+		if (dataPropertyCount > 0 && !Objects.equals(old.getUri(), namespace.getUri())) {
+			return R.failed("该命名空间已被数据属性引用，命名空间URI不可修改");
+		}
 		R<OntNamespace> validation = validateNamespace(namespace, true);
 		if (validation.getCode() != 0) {
 			return validation;
@@ -113,6 +122,11 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 			.eq(OntEntityType::getNamespaceId, id));
 		if (entityTypeCount > 0) {
 			return R.failed("该命名空间被实体类型引用，不能删除");
+		}
+		long dataPropertyCount = dataPropertyMapper.selectCount(Wrappers.<OntDataProperty>lambdaQuery()
+			.eq(OntDataProperty::getNamespaceId, id));
+		if (dataPropertyCount > 0) {
+			return R.failed("该命名空间被数据属性引用，不能删除");
 		}
 		return R.ok(this.removeById(id));
 	}

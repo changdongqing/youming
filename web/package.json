@@ -11,7 +11,7 @@
 		"lint:eslint": "eslint --fix --ext .js,.ts,.vue ./src",
 		"prettier": "prettier --write .",
 		"typecheck:ontology": "node scripts/typecheck-ontology.mjs",
-		"test:ontology": "vitest run src/views/ontology/entity-type/tree-utils.spec.ts"
+		"test:ontology": "vitest run src/views/ontology/entity-type/tree-utils.spec.ts src/views/ontology/data-property/value-rules.spec.ts"
 	},
 	"dependencies": {
 		"@axolo/json-editor-vue": "0.3.2",

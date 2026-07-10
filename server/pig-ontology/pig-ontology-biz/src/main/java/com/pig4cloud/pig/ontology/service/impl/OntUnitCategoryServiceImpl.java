@@ -9,8 +9,10 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.pig4cloud.pig.common.core.util.R;
 import com.pig4cloud.pig.ontology.entity.OntUnit;
 import com.pig4cloud.pig.ontology.entity.OntUnitCategory;
+import com.pig4cloud.pig.ontology.entity.OntDataProperty;
 import com.pig4cloud.pig.ontology.mapper.OntUnitCategoryMapper;
 import com.pig4cloud.pig.ontology.service.OntUnitCategoryService;
+import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntUnitMapper;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,8 @@ public class OntUnitCategoryServiceImpl extends ServiceImpl<OntUnitCategoryMappe
 	private static final Pattern CODE_PATTERN = Pattern.compile("^[a-z][a-z0-9_-]*$");
 
 	private final OntUnitMapper unitMapper;
+
+	private final OntDataPropertyMapper dataPropertyMapper;
 
 	@Override
 	@Transactional(rollbackFor = Exception.class)
@@ -99,6 +103,11 @@ public class OntUnitCategoryServiceImpl extends ServiceImpl<OntUnitCategoryMappe
 		long unitCount = unitMapper.selectCount(Wrappers.<OntUnit>lambdaQuery().eq(OntUnit::getCategoryId, id));
 		if (unitCount > 0) {
 			return R.failed("分类下存在单位条目，不能删除");
+		}
+		long dataPropertyCount = dataPropertyMapper.selectCount(Wrappers.<OntDataProperty>lambdaQuery()
+			.eq(OntDataProperty::getUnitCategoryId, id));
+		if (dataPropertyCount > 0) {
+			return R.failed("该单位分类被数据属性引用，不能删除");
 		}
 		return R.ok(this.removeById(id));
 	}

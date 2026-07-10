@@ -7,7 +7,7 @@ const result = spawnSync('vue-tsc', ['--noEmit', '-p', 'tsconfig.ontology.json']
 const output = `${result.stdout || ''}${result.stderr || ''}`;
 const diagnosticLines = output.split(/\r?\n/).filter(Boolean);
 const ontologyDiagnostics = diagnosticLines.filter((line) =>
-	/^src\/(views\/ontology\/entity-type|api\/ontology\/entity-type|types\/ontology)\//.test(line)
+	/^src\/(views\/ontology\/entity-type|views\/ontology\/data-property|api\/ontology\/entity-type|api\/ontology\/data-property|types\/ontology)\//.test(line)
 );
 
 if (ontologyDiagnostics.length > 0) {
@@ -16,4 +16,4 @@ if (ontologyDiagnostics.length > 0) {
 }
 
 const baselineDiagnostics = diagnosticLines.filter((line) => /^src\//.test(line)).length;
-console.log(`实体类型模块类型检查通过；忽略项目既有的 ${baselineDiagnostics} 条非 ontology 诊断。`);
+console.log(`本体建模模块类型检查通过；忽略项目既有的 ${baselineDiagnostics} 条非 ontology 诊断。`);
