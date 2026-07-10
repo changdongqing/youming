@@ -7,8 +7,10 @@ package com.pig4cloud.pig.ontology.service.impl;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.pig4cloud.pig.common.core.util.R;
+import com.pig4cloud.pig.ontology.entity.OntEntityType;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntUnit;
+import com.pig4cloud.pig.ontology.mapper.OntEntityTypeMapper;
 import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntUnitMapper;
 import com.pig4cloud.pig.ontology.service.OntNamespaceService;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
@@ -38,6 +41,8 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 	private static final Pattern LOCAL_NAME_PATTERN = Pattern.compile("^[a-zA-Z][a-zA-Z0-9_]*$");
 
 	private final OntUnitMapper unitMapper;
+
+	private final OntEntityTypeMapper entityTypeMapper;
 
 	@Override
 	@Transactional(rollbackFor = Exception.class)
@@ -76,6 +81,11 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 			return R.ok(this.getById(old.getId()));
 		}
 
+		long entityTypeCount = entityTypeMapper.selectCount(Wrappers.<OntEntityType>lambdaQuery()
+			.eq(OntEntityType::getNamespaceId, old.getId()));
+		if (entityTypeCount > 0 && !Objects.equals(old.getUri(), namespace.getUri())) {
+			return R.failed("该命名空间已被实体类型引用，命名空间URI不可修改");
+		}
 		R<OntNamespace> validation = validateNamespace(namespace, true);
 		if (validation.getCode() != 0) {
 			return validation;
@@ -98,6 +108,11 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 		long unitCount = unitMapper.selectCount(Wrappers.<OntUnit>lambdaQuery().eq(OntUnit::getNamespaceId, id));
 		if (unitCount > 0) {
 			return R.failed("该命名空间被单位条目引用，不能删除");
+		}
+		long entityTypeCount = entityTypeMapper.selectCount(Wrappers.<OntEntityType>lambdaQuery()
+			.eq(OntEntityType::getNamespaceId, id));
+		if (entityTypeCount > 0) {
+			return R.failed("该命名空间被实体类型引用，不能删除");
 		}
 		return R.ok(this.removeById(id));
 	}

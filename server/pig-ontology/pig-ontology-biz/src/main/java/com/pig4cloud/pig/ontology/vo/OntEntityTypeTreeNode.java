@@ -19,7 +19,10 @@ import java.util.List;
 @Schema(description = "实体类型树节点")
 public class OntEntityTypeTreeNode {
 
-	@Schema(description = "节点ID")
+	@Schema(description = "树展示路径唯一键")
+	private String key;
+
+	@Schema(description = "实体类型ID")
 	private Long id;
 
 	@Schema(description = "中文标签")

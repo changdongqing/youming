@@ -6,11 +6,13 @@ package com.pig4cloud.pig.ontology.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.pig4cloud.pig.common.core.util.R;
+import com.pig4cloud.pig.ontology.dto.OntEntityTypeCreateDTO;
+import com.pig4cloud.pig.ontology.dto.OntEntityTypeUpdateDTO;
 import com.pig4cloud.pig.ontology.entity.OntEntityType;
+import com.pig4cloud.pig.ontology.vo.OntEntityTypeDetailVO;
 import com.pig4cloud.pig.ontology.vo.OntEntityTypeTreeNode;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * 实体类型服务。
@@ -20,18 +22,23 @@ import java.util.Map;
 public interface OntEntityTypeService extends IService<OntEntityType> {
 
 	/**
+	 * 核心本体工程ID。
+	 */
+	long CORE_ONTOLOGY_ID = 935001L;
+
+	/**
 	 * 新增实体类型。
-	 * @param entityType 实体类型
+	 * @param request 新增请求
 	 * @return 处理结果
 	 */
-	R<OntEntityType> saveEntityType(OntEntityType entityType);
+	R<OntEntityType> saveEntityType(OntEntityTypeCreateDTO request);
 
 	/**
 	 * 修改实体类型。
-	 * @param entityType 实体类型
+	 * @param request 修改请求
 	 * @return 处理结果
 	 */
-	R<OntEntityType> updateEntityType(OntEntityType entityType);
+	R<OntEntityType> updateEntityType(OntEntityTypeUpdateDTO request);
 
 	/**
 	 * 删除实体类型。
@@ -42,15 +49,16 @@ public interface OntEntityTypeService extends IService<OntEntityType> {
 
 	/**
 	 * 继承树。
+	 * @param ontologyId 本体工程ID
 	 * @return 树
 	 */
-	List<OntEntityTypeTreeNode> tree();
+	List<OntEntityTypeTreeNode> tree(Long ontologyId);
 
 	/**
-	 * 实体类型详情（含标签、父类、子类、等价类、不相交类）。
+	 * 实体类型详情。
 	 * @param id 实体类型ID
 	 * @return 详情
 	 */
-	Map<String, Object> getDetail(Long id);
+	OntEntityTypeDetailVO getDetail(Long id);
 
 }
