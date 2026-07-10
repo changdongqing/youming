@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.pig4cloud.pig.common.core.util.R;
 import com.pig4cloud.pig.common.security.annotation.HasPermission;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
+import com.pig4cloud.pig.ontology.service.OntIriUniquenessService;
 import com.pig4cloud.pig.ontology.service.OntNamespaceService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -40,6 +41,8 @@ public class OntIriController {
 
 	private final OntNamespaceService ontNamespaceService;
 
+	private final OntIriUniquenessService ontIriUniquenessService;
+
 	/**
 	 * 校验IRI唯一性。
 	 * @param iri 完整IRI
@@ -51,11 +54,10 @@ public class OntIriController {
 		if (!StringUtils.hasText(iri)) {
 			return R.failed("IRI不能为空");
 		}
-		// 首期校验：检查入参IRI是否与已有命名空间URI完全重复。
-		// 完整全局IRI唯一性校验（实体类型/属性/实例级）随各模块上线后逐步补齐。
-		long count = ontNamespaceService.count(Wrappers.<OntNamespace>lambdaQuery().eq(OntNamespace::getUri, iri));
-		if (count > 0) {
-			return R.ok(false, "IRI与已有命名空间URI冲突");
+		// 全局IRI唯一性校验：检查命名空间URI、实体类型、数据属性和对象属性IRI是否冲突。
+		String conflict = ontIriUniquenessService.checkIriConflict(iri, null, null);
+		if (conflict != null) {
+			return R.ok(false, conflict);
 		}
 		return R.ok(true, "IRI可用");
 	}

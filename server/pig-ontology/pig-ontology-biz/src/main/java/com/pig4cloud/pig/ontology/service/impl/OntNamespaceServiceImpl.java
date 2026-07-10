@@ -11,9 +11,11 @@ import com.pig4cloud.pig.ontology.entity.OntEntityType;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntUnit;
 import com.pig4cloud.pig.ontology.entity.OntDataProperty;
+import com.pig4cloud.pig.ontology.entity.OntObjectProperty;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeMapper;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
+import com.pig4cloud.pig.ontology.mapper.OntObjectPropertyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntUnitMapper;
 import com.pig4cloud.pig.ontology.service.OntNamespaceService;
 import lombok.AllArgsConstructor;
@@ -47,6 +49,8 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 	private final OntEntityTypeMapper entityTypeMapper;
 
 	private final OntDataPropertyMapper dataPropertyMapper;
+
+	private final OntObjectPropertyMapper objectPropertyMapper;
 
 	@Override
 	@Transactional(rollbackFor = Exception.class)
@@ -95,6 +99,11 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 		if (dataPropertyCount > 0 && !Objects.equals(old.getUri(), namespace.getUri())) {
 			return R.failed("该命名空间已被数据属性引用，命名空间URI不可修改");
 		}
+		long objectPropertyCount = objectPropertyMapper.selectCount(Wrappers.<OntObjectProperty>lambdaQuery()
+			.eq(OntObjectProperty::getNamespaceId, old.getId()));
+		if (objectPropertyCount > 0 && !Objects.equals(old.getUri(), namespace.getUri())) {
+			return R.failed("该命名空间已被对象属性引用，命名空间URI不可修改");
+		}
 		R<OntNamespace> validation = validateNamespace(namespace, true);
 		if (validation.getCode() != 0) {
 			return validation;
@@ -127,6 +136,11 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 			.eq(OntDataProperty::getNamespaceId, id));
 		if (dataPropertyCount > 0) {
 			return R.failed("该命名空间被数据属性引用，不能删除");
+		}
+		long objectPropertyCount = objectPropertyMapper.selectCount(Wrappers.<OntObjectProperty>lambdaQuery()
+			.eq(OntObjectProperty::getNamespaceId, id));
+		if (objectPropertyCount > 0) {
+			return R.failed("该命名空间被对象属性引用，不能删除");
 		}
 		return R.ok(this.removeById(id));
 	}

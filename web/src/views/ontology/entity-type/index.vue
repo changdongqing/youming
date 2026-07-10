@@ -69,10 +69,16 @@
 							<el-descriptions-item label="英文名称">{{ selectedDetail.entityType.name }}</el-descriptions-item>
 							<el-descriptions-item label="标签">{{ selectedLabel }}</el-descriptions-item>
 							<el-descriptions-item label="定义">{{ selectedDetail.entityType.definition || '—' }}</el-descriptions-item>
-							<el-descriptions-item label="属性集">
+							<el-descriptions-item label="数据属性">
 								<span v-if="applicableProperties.length === 0" class="text-muted">该实体类型暂无适用数据属性</span>
 								<el-tag v-for="prop in applicableProperties" :key="prop.dataProperty.id" class="mr6" :type="prop.inherited ? 'info' : 'success'">
 									{{ prop.displayName }}{{ prop.inherited ? '（继承）' : '' }}
+								</el-tag>
+							</el-descriptions-item>
+							<el-descriptions-item label="对象属性">
+								<span v-if="applicableObjectProperties.length === 0" class="text-muted">该实体类型暂无适用对象属性</span>
+								<el-tag v-for="prop in applicableObjectProperties" :key="prop.objectProperty.id" class="mr6" :type="prop.inherited ? 'info' : 'success'">
+									{{ prop.label || prop.objectProperty.name }}{{ prop.inherited ? '（继承）' : '' }}
 								</el-tag>
 							</el-descriptions-item>
 							<el-descriptions-item label="父类">
@@ -169,6 +175,7 @@
 <script lang="ts" name="ontologyEntityType" setup>
 import { addEntityTypeObj, delEntityTypeObj, fetchEntityTypeById, fetchEntityTypeList, fetchEntityTypeTree, putEntityTypeObj } from '/@/api/ontology/entity-type';
 import { fetchDataPropertiesByDomain } from '/@/api/ontology/data-property';
+import { fetchObjectPropertiesByDomain } from '/@/api/ontology/object-property';
 import { fetchNamespaceList } from '/@/api/ontology/namespace';
 import { useMessage, useMessageBox } from '/@/hooks/message';
 import { collectInvalidParentIds, filterEntityTypeTree } from './tree-utils';
@@ -212,6 +219,7 @@ const treeKeyword = ref('');
 const selectedDetail = ref<EntityTypeDetail>();
 const selectedId = ref<OntologyId>();
 const applicableProperties = ref<any[]>([]);
+const applicableObjectProperties = ref<any[]>([]);
 
 const treeProps = { label: 'label', children: 'children' };
 
@@ -303,6 +311,14 @@ const loadDetail = async (id: OntologyId) => {
 				}
 			} catch {
 				if (requestSequence === detailRequestSequence) applicableProperties.value = [];
+			}
+			try {
+				const objPropResponse = await fetchObjectPropertiesByDomain(id);
+				if (requestSequence === detailRequestSequence) {
+					applicableObjectProperties.value = (objPropResponse.data || []) as any[];
+				}
+			} catch {
+				if (requestSequence === detailRequestSequence) applicableObjectProperties.value = [];
 			}
 		}
 	} finally {

@@ -17,6 +17,8 @@ import com.pig4cloud.pig.ontology.entity.OntEntityTypeHierarchy;
 import com.pig4cloud.pig.ontology.entity.OntEntityTypeLabel;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntDataProperty;
+import com.pig4cloud.pig.ontology.entity.OntObjectPropertyDomain;
+import com.pig4cloud.pig.ontology.entity.OntObjectPropertyRange;
 import com.pig4cloud.pig.ontology.entity.OntOntologyProject;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeDisjointMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeEquivalentMapper;
@@ -24,6 +26,8 @@ import com.pig4cloud.pig.ontology.mapper.OntEntityTypeHierarchyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeLabelMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeMapper;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
+import com.pig4cloud.pig.ontology.mapper.OntObjectPropertyDomainMapper;
+import com.pig4cloud.pig.ontology.mapper.OntObjectPropertyRangeMapper;
 import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntOntologyProjectMapper;
 import com.pig4cloud.pig.ontology.service.OntEntityTypeService;
@@ -83,6 +87,10 @@ public class OntEntityTypeServiceImpl extends ServiceImpl<OntEntityTypeMapper, O
 	private final OntOntologyProjectMapper ontologyProjectMapper;
 
 	private final OntDataPropertyMapper dataPropertyMapper;
+
+	private final OntObjectPropertyDomainMapper objectPropertyDomainMapper;
+
+	private final OntObjectPropertyRangeMapper objectPropertyRangeMapper;
 
 	@Override
 	@Transactional(rollbackFor = Exception.class)
@@ -203,6 +211,17 @@ public class OntEntityTypeServiceImpl extends ServiceImpl<OntEntityTypeMapper, O
 			.eq(OntDataProperty::getDomainEntityTypeId, id));
 		if (dataPropertyCount > 0) {
 			return R.failed("该实体类型被数据属性引用为定义域，不能删除");
+		}
+		long objPropDomainCount = objectPropertyDomainMapper
+			.selectCount(Wrappers.<OntObjectPropertyDomain>lambdaQuery()
+				.eq(OntObjectPropertyDomain::getEntityTypeId, id));
+		if (objPropDomainCount > 0) {
+			return R.failed("该实体类型被对象属性引用为定义域，不能删除");
+		}
+		long objPropRangeCount = objectPropertyRangeMapper.selectCount(Wrappers.<OntObjectPropertyRange>lambdaQuery()
+			.eq(OntObjectPropertyRange::getEntityTypeId, id));
+		if (objPropRangeCount > 0) {
+			return R.failed("该实体类型被对象属性引用为值域，不能删除");
 		}
 		hierarchyMapper.delete(Wrappers.<OntEntityTypeHierarchy>lambdaQuery()
 			.eq(OntEntityTypeHierarchy::getChildId, id));
