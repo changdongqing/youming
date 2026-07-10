@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	autoResolveUnitRefMode,
 	autoResolveValueMode,
-	getFieldVisibility,
-	isUnitCategoryRequired
+	getFieldVisibility
 } from './value-rules';
 
 describe('getFieldVisibility', () => {
@@ -83,16 +82,6 @@ describe('getFieldVisibility', () => {
 		expect(v.enumValues).toBe(false);
 		expect(v.unitCategoryId).toBe(false);
 		expect(v.formatHint).toBe(true);
-	});
-});
-
-describe('isUnitCategoryRequired', () => {
-	it('UNIT_REF 时单位分类仍为可选', () => {
-		expect(isUnitCategoryRequired('UNIT_REF', 'UNIT_DICTIONARY')).toBe(false);
-	});
-
-	it('NUMERIC 时单位分类为可选', () => {
-		expect(isUnitCategoryRequired('NUMERIC', 'FREE')).toBe(false);
 	});
 });
 

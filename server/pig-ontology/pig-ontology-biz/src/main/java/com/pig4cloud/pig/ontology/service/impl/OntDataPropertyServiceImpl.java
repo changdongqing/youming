@@ -102,13 +102,16 @@ public class OntDataPropertyServiceImpl extends ServiceImpl<OntDataPropertyMappe
 	@Override
 	public IPage<OntDataPropertySummaryVO> pageSummary(Page<OntDataProperty> page, OntDataPropertyQuery query) {
 		Page<OntDataProperty> rawPage = this.page(page, buildQueryWrapper(query));
-		return rawPage.convert(this::toSummary);
+		List<OntDataPropertySummaryVO> records = buildSummaryList(rawPage.getRecords());
+		Page<OntDataPropertySummaryVO> resultPage = new Page<>(rawPage.getCurrent(), rawPage.getSize(),
+				rawPage.getTotal());
+		resultPage.setRecords(records);
+		return resultPage;
 	}
 
 	@Override
 	public List<OntDataPropertySummaryVO> listSummary(OntDataPropertyQuery query) {
-		List<OntDataProperty> list = this.list(buildQueryWrapper(query));
-		return list.stream().map(this::toSummary).toList();
+		return buildSummaryList(this.list(buildQueryWrapper(query)));
 	}
 
 	@Override
@@ -239,7 +242,8 @@ public class OntDataPropertyServiceImpl extends ServiceImpl<OntDataPropertyMappe
 				? OntEntityTypeService.CORE_ONTOLOGY_ID : request.getOntologyId();
 
 		ValidationContext context = validateSemanticFields(ontologyId, request.getNamespaceId(), request.getName(),
-			request.getIriLocalName(), request.getIri(), request.getDomainEntityTypeId(), null);
+			request.getIriLocalName(), request.getIri(), request.getDomainEntityTypeId(),
+			request.getPreferredAlias(), null);
 		if (context.error() != null) {
 			return R.failed(context.error());
 		}
@@ -317,7 +321,7 @@ public class OntDataPropertyServiceImpl extends ServiceImpl<OntDataPropertyMappe
 		List<String> enumValues = request.getEnumValues();
 
 		ValidationContext context = validateSemanticFields(ontologyId, namespaceId, name, iriLocalName,
-			request.getIri(), domainEntityTypeId, old.getId());
+			request.getIri(), domainEntityTypeId, request.getPreferredAlias(), old.getId());
 		if (context.error() != null) {
 			return R.failed(context.error());
 		}
@@ -373,7 +377,7 @@ public class OntDataPropertyServiceImpl extends ServiceImpl<OntDataPropertyMappe
 	// ==================== 校验 ====================
 
 	private ValidationContext validateSemanticFields(Long ontologyId, Long namespaceId, String name,
-			String iriLocalName, String requestIri, Long domainEntityTypeId, Long excludeId) {
+			String iriLocalName, String requestIri, Long domainEntityTypeId, String preferredAlias, Long excludeId) {
 		OntOntologyProject ontology = ontologyProjectMapper.selectById(ontologyId);
 		if (ontology == null) {
 			return ValidationContext.failed("本体工程不存在");
@@ -426,7 +430,40 @@ public class OntDataPropertyServiceImpl extends ServiceImpl<OntDataPropertyMappe
 		if (nameCount > 0) {
 			return ValidationContext.failed("同一命名空间和定义域下英文名称已存在");
 		}
+		// preferred_alias 跨列冲突校验（设计§3.1约束4）：别名不得与其他记录的 iri_local_name 或
+		// preferred_alias 冲突，避免序列化时IRI歧义
+		if (StringUtils.hasText(preferredAlias)) {
+			String aliasError = validatePreferredAliasConflict(ontologyId, namespaceId, preferredAlias, excludeId);
+			if (aliasError != null) {
+				return ValidationContext.failed(aliasError);
+			}
+		}
 		return new ValidationContext(expectedIri, effectiveLocalName, null);
+	}
+
+	/**
+	 * 校验 preferred_alias 跨列冲突（设计§3.1约束4）。
+	 * 别名不得与同工程同命名空间下其他有效记录的 iri_local_name 或 preferred_alias 相同。
+	 */
+	private String validatePreferredAliasConflict(Long ontologyId, Long namespaceId, String preferredAlias,
+			Long excludeId) {
+		long aliasVsLocalName = this.count(Wrappers.<OntDataProperty>lambdaQuery()
+			.eq(OntDataProperty::getOntologyId, ontologyId)
+			.eq(OntDataProperty::getNamespaceId, namespaceId)
+			.eq(OntDataProperty::getIriLocalName, preferredAlias)
+			.ne(excludeId != null, OntDataProperty::getId, excludeId));
+		if (aliasVsLocalName > 0) {
+			return "首选别名与已有属性的IRI本地名冲突";
+		}
+		long aliasVsAlias = this.count(Wrappers.<OntDataProperty>lambdaQuery()
+			.eq(OntDataProperty::getOntologyId, ontologyId)
+			.eq(OntDataProperty::getNamespaceId, namespaceId)
+			.eq(OntDataProperty::getPreferredAlias, preferredAlias)
+			.ne(excludeId != null, OntDataProperty::getId, excludeId));
+		if (aliasVsAlias > 0) {
+			return "首选别名与已有属性的首选别名冲突";
+		}
+		return null;
 	}
 
 	private String validateValueMode(String baseType, String valueMode, String valueSourceRef,
@@ -520,37 +557,71 @@ public class OntDataPropertyServiceImpl extends ServiceImpl<OntDataPropertyMappe
 			.orderByAsc(OntDataProperty::getId);
 	}
 
-	private OntDataPropertySummaryVO toSummary(OntDataProperty prop) {
-		OntDataPropertySummaryVO vo = new OntDataPropertySummaryVO();
-		vo.setDataProperty(prop);
-		vo.setDisplayName(resolveDisplayName(prop));
-		List<OntDataPropertyLabel> labels = labelMapper.selectList(Wrappers.<OntDataPropertyLabel>lambdaQuery()
-			.eq(OntDataPropertyLabel::getDataPropertyId, prop.getId())
-			.eq(OntDataPropertyLabel::getLocale, ZH));
-		if (!labels.isEmpty()) {
-			vo.setLabel(labels.get(0).getLabel());
+	/**
+	 * 批量组装摘要VO，消除逐行N+1查询。 设计§6.1要求：分页先查主表，再批量查询标签、定义域，禁止逐行N+1。
+	 */
+	private List<OntDataPropertySummaryVO> buildSummaryList(List<OntDataProperty> properties) {
+		if (properties == null || properties.isEmpty()) {
+			return List.of();
 		}
-		OntEntityType domainType = entityTypeMapper.selectById(prop.getDomainEntityTypeId());
-		if (domainType != null) {
-			vo.setDomainEntityTypeName(domainType.getName());
-			List<OntEntityTypeLabel> domainLabels = entityTypeLabelMapper
-				.selectList(Wrappers.<OntEntityTypeLabel>lambdaQuery()
-					.eq(OntEntityTypeLabel::getEntityTypeId, domainType.getId())
-					.eq(OntEntityTypeLabel::getLocale, ZH));
-			if (!domainLabels.isEmpty()) {
-				vo.setDomainEntityTypeLabel(domainLabels.get(0).getLabel());
+		List<Long> propIds = properties.stream().map(OntDataProperty::getId).toList();
+		Set<Long> domainTypeIds = properties.stream().map(OntDataProperty::getDomainEntityTypeId)
+			.filter(Objects::nonNull).collect(Collectors.toSet());
+		Set<Long> unitCategoryIds = properties.stream().map(OntDataProperty::getUnitCategoryId)
+			.filter(Objects::nonNull).collect(Collectors.toSet());
+
+		// 批量查询中文标签
+		Map<Long, String> labelMap = labelMapper.selectList(Wrappers.<OntDataPropertyLabel>lambdaQuery()
+			.eq(OntDataPropertyLabel::getLocale, ZH)
+			.in(OntDataPropertyLabel::getDataPropertyId, propIds))
+			.stream()
+			.collect(Collectors.toMap(OntDataPropertyLabel::getDataPropertyId, OntDataPropertyLabel::getLabel,
+				(existing, replacement) -> existing));
+
+		// 批量查询定义域实体类型
+		Map<Long, OntEntityType> domainTypeMap = domainTypeIds.isEmpty() ? Collections.emptyMap()
+				: entityTypeMapper.selectBatchIds(domainTypeIds).stream()
+					.collect(Collectors.toMap(OntEntityType::getId, Function.identity()));
+
+		// 批量查询定义域实体类型中文标签
+		Map<Long, String> domainLabelMap = domainTypeIds.isEmpty() ? Collections.emptyMap()
+				: entityTypeLabelMapper.selectList(Wrappers.<OntEntityTypeLabel>lambdaQuery()
+					.eq(OntEntityTypeLabel::getLocale, ZH)
+					.in(OntEntityTypeLabel::getEntityTypeId, domainTypeIds))
+					.stream()
+					.collect(Collectors.toMap(OntEntityTypeLabel::getEntityTypeId, OntEntityTypeLabel::getLabel,
+						(existing, replacement) -> existing));
+
+		// 批量查询单位分类
+		Map<Long, OntUnitCategory> unitCategoryMap = unitCategoryIds.isEmpty() ? Collections.emptyMap()
+				: unitCategoryMapper.selectBatchIds(unitCategoryIds).stream()
+					.collect(Collectors.toMap(OntUnitCategory::getId, Function.identity()));
+
+		// 批量查询枚举计数：一次查询所有属性的枚举值，在内存中分组计数
+		Map<Long, Long> enumCountMap = enumMapper.selectList(Wrappers.<OntDataPropertyEnum>lambdaQuery()
+			.in(OntDataPropertyEnum::getDataPropertyId, propIds))
+			.stream()
+			.collect(Collectors.groupingBy(OntDataPropertyEnum::getDataPropertyId, Collectors.counting()));
+
+		return properties.stream().map(prop -> {
+			OntDataPropertySummaryVO vo = new OntDataPropertySummaryVO();
+			vo.setDataProperty(prop);
+			vo.setDisplayName(resolveDisplayName(prop));
+			vo.setLabel(labelMap.get(prop.getId()));
+			OntEntityType domainType = domainTypeMap.get(prop.getDomainEntityTypeId());
+			if (domainType != null) {
+				vo.setDomainEntityTypeName(domainType.getName());
+				vo.setDomainEntityTypeLabel(domainLabelMap.get(prop.getDomainEntityTypeId()));
 			}
-		}
-		long enumCount = enumMapper.selectCount(Wrappers.<OntDataPropertyEnum>lambdaQuery()
-			.eq(OntDataPropertyEnum::getDataPropertyId, prop.getId()));
-		vo.setEnumCount((int) enumCount);
-		if (prop.getUnitCategoryId() != null) {
-			OntUnitCategory category = unitCategoryMapper.selectById(prop.getUnitCategoryId());
-			if (category != null) {
-				vo.setUnitCategoryName(category.getCategoryName());
+			vo.setEnumCount(enumCountMap.getOrDefault(prop.getId(), 0L).intValue());
+			if (prop.getUnitCategoryId() != null) {
+				OntUnitCategory category = unitCategoryMap.get(prop.getUnitCategoryId());
+				if (category != null) {
+					vo.setUnitCategoryName(category.getCategoryName());
+				}
 			}
-		}
-		return vo;
+			return vo;
+		}).toList();
 	}
 
 	private String resolveDisplayName(OntDataProperty prop) {
@@ -561,6 +632,10 @@ public class OntDataPropertyServiceImpl extends ServiceImpl<OntDataPropertyMappe
 	}
 
 	private void saveLabel(Long dataPropertyId, String locale, String label) {
+		// 空值防御：避免空标签覆盖已有中文标签导致CHECK约束异常（设计§5.3标签为必填语义字段）
+		if (!StringUtils.hasText(label)) {
+			return;
+		}
 		int updated = labelMapper.update(null, Wrappers.<OntDataPropertyLabel>lambdaUpdate()
 			.eq(OntDataPropertyLabel::getDataPropertyId, dataPropertyId)
 			.eq(OntDataPropertyLabel::getLocale, locale)

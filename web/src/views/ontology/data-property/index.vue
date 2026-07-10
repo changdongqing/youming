@@ -147,13 +147,13 @@
 					<el-input v-model="form.iriLocalName" :disabled="isBuiltinEdit" placeholder="缺省等于英文名称" />
 				</el-form-item>
 				<el-form-item label="IRI预览" prop="iri">
-					<el-input v-model="form.iri" readonly placeholder="由后端根据命名空间和IRI本地名生成" />
+					<el-input :model-value="isBuiltinEdit ? form.iri : iriPreview" readonly placeholder="由后端根据命名空间和IRI本地名生成" />
 				</el-form-item>
 				<el-form-item label="中文标签" prop="label">
 					<el-input v-model="form.label" placeholder="如 车辆重量" maxlength="128" show-word-limit />
 				</el-form-item>
 				<el-form-item label="定义" prop="definition">
-					<el-input v-model="form.definition" type="textarea" maxlength="512" show-word-limit />
+					<el-input v-model="form.definition" :disabled="isBuiltinEdit" type="textarea" maxlength="512" show-word-limit />
 				</el-form-item>
 				<el-form-item label="定义域" prop="domainEntityTypeId">
 					<el-select v-model="form.domainEntityTypeId" :disabled="isBuiltinEdit" filterable placeholder="选择实体类型" style="width: 100%">
@@ -185,7 +185,8 @@
 				<el-form-item v-if="fieldVisibility.valueSourceRef" label="外部值源" prop="valueSourceRef">
 					<el-input v-model="form.valueSourceRef" placeholder="如 ICS、CCS" />
 				</el-form-item>
-				<el-form-item v-if="fieldVisibility.enumValues" label="枚举值">
+				<el-form-item v-if="fieldVisibility.enumValues" label="枚举值" prop="enumValues">
+					<el-text v-if="form.valueMode === 'OPEN_ENUM'" type="info" size="small" class="mb8 block-text">列表为推荐值，实例层仍允许提交其他合法值</el-text>
 					<div v-if="!isBuiltinEdit" style="width: 100%">
 						<el-input v-model="enumInput" placeholder="输入枚举值后回车" style="width: 200px" @keyup.enter="addEnum" />
 						<el-button type="primary" link @click="addEnum">添加</el-button>
@@ -236,13 +237,14 @@
 </template>
 
 <script lang="ts" name="ontologyDataProperty" setup>
-import { addDataPropertyObj, delDataPropertyObj, fetchDataPropertyById, fetchDataPropertyList, fetchDataPropertiesByDomain, putDataPropertyObj } from '/@/api/ontology/data-property';
+import { addDataPropertyObj, delDataPropertyObj, fetchDataPropertyById, fetchDataPropertyPage, fetchDataPropertiesByDomain, putDataPropertyObj } from '/@/api/ontology/data-property';
 import { fetchEntityTypeList, fetchEntityTypeTree } from '/@/api/ontology/entity-type';
 import { fetchNamespaceList } from '/@/api/ontology/namespace';
+import { fetchCategoryList } from '/@/api/ontology/unit';
 import { useMessage, useMessageBox } from '/@/hooks/message';
 import { filterEntityTypeTree } from '/@/views/ontology/entity-type/tree-utils';
 import { autoResolveUnitRefMode, autoResolveValueMode, getFieldVisibility } from './value-rules';
-import type { DataPropertyCreateRequest, DataPropertyForm, DataPropertySummary, DataPropertyUpdateRequest, OntologyId } from '/@/types/ontology/data-property';
+import type { ApplicableDataProperty, DataPropertyCreateRequest, DataPropertyForm, DataPropertyQuery, DataPropertySummary, DataPropertyUpdateRequest, OntologyId } from '/@/types/ontology/data-property';
 import type { EntityTypeTreeNode } from '/@/types/ontology/entity-type';
 
 const pageRef = ref<HTMLElement>();
@@ -273,7 +275,7 @@ const selectedDomainTypeId = ref<OntologyId>();
 const selectedDomainName = ref('');
 const selectedDomainLabel = ref('');
 const pagedData = ref<DataPropertySummary[]>([]);
-const applicableData = ref<any[]>([]);
+const applicableData = ref<ApplicableDataProperty[]>([]);
 const enumInput = ref('');
 
 const pagination = reactive({ current: 1, size: 10, total: 0 });
@@ -318,6 +320,15 @@ const isBuiltinEdit = computed(() => Boolean(form.id && form.isBuiltin === '1'))
 const namespaceOptions = computed(() => extensionNamespaces.value);
 const fieldVisibility = computed(() => getFieldVisibility(form.baseType, form.valueMode));
 
+// IRI 预览：根据选中的命名空间URI和IRI本地名实时计算（设计§9.2）
+const iriPreview = computed(() => {
+	const ns = extensionNamespaces.value.find((n: { id: OntologyId; prefix: string; uri: string }) => n.id === form.namespaceId);
+	if (!ns) return '';
+	const localName = form.iriLocalName || form.name;
+	if (!localName) return '';
+	return ns.uri + localName;
+});
+
 const rules = {
 	namespaceId: [{ required: true, message: '请选择命名空间', trigger: 'change' }],
 	name: [
@@ -328,6 +339,18 @@ const rules = {
 	domainEntityTypeId: [{ required: true, message: '请选择定义域实体类型', trigger: 'change' }],
 	baseType: [{ required: true, message: '请选择值域类型', trigger: 'change' }],
 	valueMode: [{ required: true, message: '请选择值模式', trigger: 'change' }],
+	enumValues: [
+		{
+			validator: (_rule: any, _value: any, callback: any) => {
+				if (form.valueMode === 'CLOSED_ENUM' && (!form.enumValues || form.enumValues.length === 0)) {
+					callback(new Error('闭合枚举至少需要一个枚举值'));
+				} else {
+					callback();
+				}
+			},
+			trigger: 'change',
+		},
+	],
 };
 
 const filteredTree = computed<EntityTypeTreeNode[]>(() => filterEntityTypeTree(treeData.value, treeKeyword.value));
@@ -352,12 +375,17 @@ const loadNamespaces = async () => {
 	extensionNamespaces.value = (response.data || []) as { id: OntologyId; prefix: string; uri: string }[];
 };
 
+const loadUnitCategories = async () => {
+	const response = await fetchCategoryList();
+	unitCategoryOptions.value = (response.data || []) as { id: OntologyId; categoryCode: string; categoryName: string }[];
+};
+
 const loadList = async () => {
 	if (selectedDomainTypeId.value) {
 		tableLoading.value = true;
 		try {
 			const response = await fetchDataPropertiesByDomain(selectedDomainTypeId.value);
-			applicableData.value = response.data || [];
+			applicableData.value = (response.data || []) as ApplicableDataProperty[];
 		} catch (error: unknown) {
 			useMessage().error(getErrorMessage(error, '加载失败'));
 		} finally {
@@ -366,16 +394,17 @@ const loadList = async () => {
 	} else {
 		tableLoading.value = true;
 		try {
-			const params: any = {
+			const params: DataPropertyQuery = {
 				current: pagination.current,
 				size: pagination.size,
 				name: query.name || undefined,
 				baseType: query.baseType || undefined,
-				isBuiltin: query.isBuiltin || undefined,
+				isBuiltin: (query.isBuiltin as '0' | '1') || undefined,
 			};
-			const response = await fetchDataPropertyList(params);
-			pagedData.value = (response.data || []) as DataPropertySummary[];
-			pagination.total = pagedData.value.length;
+			const response = await fetchDataPropertyPage(params);
+			const pageData = response.data || {};
+			pagedData.value = (pageData.records || []) as DataPropertySummary[];
+			pagination.total = pageData.total || 0;
 		} catch (error: unknown) {
 			useMessage().error(getErrorMessage(error, '加载失败'));
 		} finally {
@@ -387,7 +416,7 @@ const loadList = async () => {
 const refreshAll = async () => {
 	refreshing.value = true;
 	try {
-		await Promise.all([loadTree(), loadEntityTypes(), loadNamespaces()]);
+		await Promise.all([loadTree(), loadEntityTypes(), loadNamespaces(), loadUnitCategories()]);
 		await loadList();
 	} catch (error: unknown) {
 		useMessage().error(getErrorMessage(error, '刷新失败'));
@@ -609,6 +638,9 @@ onUnmounted(() => {
 }
 .mt4 {
 	margin-top: 4px;
+}
+.block-text {
+	display: block;
 }
 .tree-node {
 	display: flex;

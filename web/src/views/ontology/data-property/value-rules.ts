@@ -85,16 +85,6 @@ export function getFieldVisibility(baseType: BaseType | '', valueMode: ValueMode
 }
 
 /**
- * 判断当前值域类型是否要求单位分类为必填。
- * 仅 UNIT_REF + UNIT_DICTIONARY 时单位分类为可选（NULL表示不限分类）。
- * NUMERIC 时单位分类也为可选。
- */
-export function isUnitCategoryRequired(baseType: BaseType | '', valueMode: ValueMode | ''): boolean {
-	// 当前设计：单位分类始终可选，NULL表示不限分类
-	return false;
-}
-
-/**
  * 判断值域类型为 UNIT_REF 时是否自动锁定值模式为 UNIT_DICTIONARY。
  */
 export function autoResolveValueMode(baseType: BaseType | '', currentValueMode: ValueMode | ''): ValueMode | '' {
