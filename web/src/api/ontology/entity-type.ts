@@ -1,6 +1,7 @@
 import request from '/@/utils/request';
+import type { EntityTypeCreateRequest, EntityTypeQuery, EntityTypeUpdateRequest, OntologyId } from '/@/types/ontology/entity-type';
 
-export function fetchEntityTypePage(query?: any) {
+export function fetchEntityTypePage(query?: EntityTypeQuery) {
 	return request({
 		url: '/admin/ontology/entity-types',
 		method: 'get',
@@ -8,7 +9,7 @@ export function fetchEntityTypePage(query?: any) {
 	});
 }
 
-export function fetchEntityTypeList(query?: any) {
+export function fetchEntityTypeList(query?: EntityTypeQuery) {
 	return request({
 		url: '/admin/ontology/entity-types/list',
 		method: 'get',
@@ -16,21 +17,22 @@ export function fetchEntityTypeList(query?: any) {
 	});
 }
 
-export function fetchEntityTypeTree() {
+export function fetchEntityTypeTree(ontologyId?: OntologyId) {
 	return request({
 		url: '/admin/ontology/entity-types/tree',
 		method: 'get',
+		params: ontologyId ? { ontologyId } : undefined,
 	});
 }
 
-export function fetchEntityTypeById(id: string | number) {
+export function fetchEntityTypeById(id: OntologyId) {
 	return request({
 		url: `/admin/ontology/entity-types/${id}`,
 		method: 'get',
 	});
 }
 
-export function addEntityTypeObj(obj: any) {
+export function addEntityTypeObj(obj: EntityTypeCreateRequest) {
 	return request({
 		url: '/admin/ontology/entity-types',
 		method: 'post',
@@ -38,7 +40,7 @@ export function addEntityTypeObj(obj: any) {
 	});
 }
 
-export function putEntityTypeObj(obj: any) {
+export function putEntityTypeObj(obj: EntityTypeUpdateRequest) {
 	return request({
 		url: '/admin/ontology/entity-types',
 		method: 'put',
@@ -46,7 +48,7 @@ export function putEntityTypeObj(obj: any) {
 	});
 }
 
-export function delEntityTypeObj(id: string | number) {
+export function delEntityTypeObj(id: OntologyId) {
 	return request({
 		url: `/admin/ontology/entity-types/${id}`,
 		method: 'delete',
