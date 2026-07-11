@@ -8,10 +8,12 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.pig4cloud.pig.common.core.util.R;
 import com.pig4cloud.pig.ontology.entity.OntEntityType;
+import com.pig4cloud.pig.ontology.entity.OntEntityInstance;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntUnit;
 import com.pig4cloud.pig.ontology.entity.OntDataProperty;
 import com.pig4cloud.pig.ontology.entity.OntObjectProperty;
+import com.pig4cloud.pig.ontology.mapper.OntEntityInstanceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeMapper;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
@@ -51,6 +53,8 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 	private final OntDataPropertyMapper dataPropertyMapper;
 
 	private final OntObjectPropertyMapper objectPropertyMapper;
+
+	private final OntEntityInstanceMapper entityInstanceMapper;
 
 	@Override
 	@Transactional(rollbackFor = Exception.class)
@@ -141,6 +145,11 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 			.eq(OntObjectProperty::getNamespaceId, id));
 		if (objectPropertyCount > 0) {
 			return R.failed("该命名空间被对象属性引用，不能删除");
+		}
+		long instanceCount = entityInstanceMapper.selectCount(Wrappers.<OntEntityInstance>lambdaQuery()
+			.eq(OntEntityInstance::getNamespaceId, id));
+		if (instanceCount > 0) {
+			return R.failed("该命名空间被" + instanceCount + "个实例引用，不能删除");
 		}
 		return R.ok(this.removeById(id));
 	}

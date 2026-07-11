@@ -20,6 +20,7 @@ import com.pig4cloud.pig.ontology.entity.OntDataPropertyLabel;
 import com.pig4cloud.pig.ontology.entity.OntEntityType;
 import com.pig4cloud.pig.ontology.entity.OntEntityTypeHierarchy;
 import com.pig4cloud.pig.ontology.entity.OntEntityTypeLabel;
+import com.pig4cloud.pig.ontology.entity.OntInstanceDataValue;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntOntologyProject;
 import com.pig4cloud.pig.ontology.entity.OntUnitCategory;
@@ -30,6 +31,7 @@ import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeHierarchyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeLabelMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeMapper;
+import com.pig4cloud.pig.ontology.mapper.OntInstanceDataValueMapper;
 import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntOntologyProjectMapper;
 import com.pig4cloud.pig.ontology.mapper.OntUnitCategoryMapper;
@@ -102,6 +104,8 @@ public class OntDataPropertyServiceImpl extends ServiceImpl<OntDataPropertyMappe
 	private final OntUnitCategoryMapper unitCategoryMapper;
 
 	private final OntAxiomRuleTargetMapper axiomRuleTargetMapper;
+
+	private final OntInstanceDataValueMapper instanceDataValueMapper;
 
 	@Override
 	public IPage<OntDataPropertySummaryVO> pageSummary(Page<OntDataProperty> page, OntDataPropertyQuery query) {
@@ -375,6 +379,12 @@ public class OntDataPropertyServiceImpl extends ServiceImpl<OntDataPropertyMappe
 			.eq(OntAxiomRuleTarget::getDataPropertyId, id));
 		if (axiomTargetCount > 0) {
 			return R.failed("该数据属性被公理规则引用，不能删除");
+		}
+		// 检查实例数据属性值引用
+		long instanceValueCount = instanceDataValueMapper.selectCount(Wrappers.<OntInstanceDataValue>lambdaQuery()
+			.eq(OntInstanceDataValue::getDataPropertyId, id));
+		if (instanceValueCount > 0) {
+			return R.failed("该数据属性被" + instanceValueCount + "条实例数据值引用，不能删除");
 		}
 		enumMapper.delete(Wrappers.<OntDataPropertyEnum>lambdaQuery()
 			.eq(OntDataPropertyEnum::getDataPropertyId, id));

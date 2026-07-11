@@ -8,8 +8,10 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.pig4cloud.pig.common.core.util.R;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
+import com.pig4cloud.pig.ontology.entity.OntInstanceDataValue;
 import com.pig4cloud.pig.ontology.entity.OntUnit;
 import com.pig4cloud.pig.ontology.entity.OntUnitCategory;
+import com.pig4cloud.pig.ontology.mapper.OntInstanceDataValueMapper;
 import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntUnitMapper;
 import com.pig4cloud.pig.ontology.service.OntUnitCategoryService;
@@ -45,6 +47,8 @@ public class OntUnitServiceImpl extends ServiceImpl<OntUnitMapper, OntUnit> impl
 	private final OntUnitCategoryService categoryService;
 
 	private final OntNamespaceMapper namespaceMapper;
+
+	private final OntInstanceDataValueMapper instanceDataValueMapper;
 
 	@Override
 	@Transactional(rollbackFor = Exception.class)
@@ -90,6 +94,14 @@ public class OntUnitServiceImpl extends ServiceImpl<OntUnitMapper, OntUnit> impl
 		if (validation.getCode() != 0) {
 			return validation;
 		}
+		// 修改单位符号前检查UNIT_REF引用，避免词法快照漂移
+		if (StringUtils.hasText(unit.getUnitSymbol()) && !unit.getUnitSymbol().equals(old.getUnitSymbol())) {
+			long refCount = instanceDataValueMapper.selectCount(Wrappers.<OntInstanceDataValue>lambdaQuery()
+				.eq(OntInstanceDataValue::getUnitId, unit.getId()));
+			if (refCount > 0) {
+				return R.failed("该单位被" + refCount + "条实例UNIT_REF值引用，不能修改单位符号");
+			}
+		}
 		unit.setIsBuiltin(EXTENSION);
 		this.updateById(unit);
 		return R.ok(this.getById(unit.getId()));
@@ -104,6 +116,12 @@ public class OntUnitServiceImpl extends ServiceImpl<OntUnitMapper, OntUnit> impl
 		}
 		if (BUILTIN.equals(unit.getIsBuiltin())) {
 			return R.failed("内置单位不可删除");
+		}
+		// 检查实例UNIT_REF引用
+		long refCount = instanceDataValueMapper.selectCount(Wrappers.<OntInstanceDataValue>lambdaQuery()
+			.eq(OntInstanceDataValue::getUnitId, id));
+		if (refCount > 0) {
+			return R.failed("该单位被" + refCount + "条实例UNIT_REF值引用，不能删除");
 		}
 		return R.ok(this.removeById(id));
 	}

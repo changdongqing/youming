@@ -7,8 +7,8 @@ package com.pig4cloud.pig.ontology.service;
 /**
  * 全局IRI唯一性校验组件。
  *
- * 统一校验IRI在命名空间URI、实体类型、数据属性和对象属性中是否唯一。
- * 各Schema写入口（实体类型、数据属性、对象属性Service和IRI校验接口）复用该组件。
+ * 统一校验IRI在命名空间URI、实体类型、数据属性、对象属性和实例中是否唯一。
+ * 各Schema写入口和实例写入口复用该组件。
  *
  * @author youming
  */

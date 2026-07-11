@@ -6,10 +6,12 @@ package com.pig4cloud.pig.ontology.service.impl;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.pig4cloud.pig.ontology.entity.OntDataProperty;
+import com.pig4cloud.pig.ontology.entity.OntEntityInstance;
 import com.pig4cloud.pig.ontology.entity.OntEntityType;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntObjectProperty;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
+import com.pig4cloud.pig.ontology.mapper.OntEntityInstanceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeMapper;
 import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntObjectPropertyMapper;
@@ -33,6 +35,8 @@ public class OntIriUniquenessServiceImpl implements OntIriUniquenessService {
 	private final OntDataPropertyMapper dataPropertyMapper;
 
 	private final OntObjectPropertyMapper objectPropertyMapper;
+
+	private final OntEntityInstanceMapper entityInstanceMapper;
 
 	@Override
 	public String checkIriConflict(String iri, String excludeTableName, Long excludeId) {
@@ -65,6 +69,14 @@ public class OntIriUniquenessServiceImpl implements OntIriUniquenessService {
 			.ne(isSameTable(excludeTableName, "ont_object_property"), OntObjectProperty::getId, excludeId));
 		if (opCount > 0) {
 			return "IRI与已有对象属性IRI冲突";
+		}
+
+		// 5. 实例IRI冲突
+		long instCount = entityInstanceMapper.selectCount(Wrappers.<OntEntityInstance>lambdaQuery()
+			.eq(OntEntityInstance::getIri, iri)
+			.ne(isSameTable(excludeTableName, "ont_entity_instance"), OntEntityInstance::getId, excludeId));
+		if (instCount > 0) {
+			return "IRI与已有实例IRI冲突";
 		}
 
 		return null;

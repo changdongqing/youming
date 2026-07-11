@@ -17,6 +17,7 @@ import com.pig4cloud.pig.ontology.entity.OntAxiomRuleTarget;
 import com.pig4cloud.pig.ontology.entity.OntEntityType;
 import com.pig4cloud.pig.ontology.entity.OntEntityTypeHierarchy;
 import com.pig4cloud.pig.ontology.entity.OntEntityTypeLabel;
+import com.pig4cloud.pig.ontology.entity.OntInstanceObjectRelation;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntObjectProperty;
 import com.pig4cloud.pig.ontology.entity.OntObjectPropertyDomain;
@@ -27,6 +28,7 @@ import com.pig4cloud.pig.ontology.mapper.OntAxiomRuleTargetMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeHierarchyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeLabelMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeMapper;
+import com.pig4cloud.pig.ontology.mapper.OntInstanceObjectRelationMapper;
 import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntObjectPropertyDomainMapper;
 import com.pig4cloud.pig.ontology.mapper.OntObjectPropertyLabelMapper;
@@ -106,6 +108,8 @@ public class OntObjectPropertyServiceImpl extends ServiceImpl<OntObjectPropertyM
 	private final OntIriUniquenessService iriUniquenessService;
 
 	private final OntAxiomRuleTargetMapper axiomRuleTargetMapper;
+
+	private final OntInstanceObjectRelationMapper instanceObjectRelationMapper;
 
 	// ==================== 查询 ====================
 
@@ -429,6 +433,13 @@ public class OntObjectPropertyServiceImpl extends ServiceImpl<OntObjectPropertyM
 			.eq(OntAxiomRuleTarget::getObjectPropertyId, id));
 		if (axiomTargetCount > 0) {
 			return R.failed("该对象属性被公理规则引用，不能删除");
+		}
+		// 检查实例对象断言引用
+		long relationCount = instanceObjectRelationMapper
+			.selectCount(Wrappers.<OntInstanceObjectRelation>lambdaQuery()
+				.eq(OntInstanceObjectRelation::getObjectPropertyId, id));
+		if (relationCount > 0) {
+			return R.failed("该对象属性被" + relationCount + "条实例断言引用，不能删除");
 		}
 		// 解除逆属性关系
 		if (prop.getInverseOfId() != null) {

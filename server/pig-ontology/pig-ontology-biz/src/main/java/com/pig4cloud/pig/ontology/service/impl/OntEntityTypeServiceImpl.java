@@ -15,6 +15,8 @@ import com.pig4cloud.pig.ontology.entity.OntEntityTypeDisjoint;
 import com.pig4cloud.pig.ontology.entity.OntEntityTypeEquivalent;
 import com.pig4cloud.pig.ontology.entity.OntEntityTypeHierarchy;
 import com.pig4cloud.pig.ontology.entity.OntEntityTypeLabel;
+import com.pig4cloud.pig.ontology.entity.OntEntityInstance;
+import com.pig4cloud.pig.ontology.entity.OntInstanceObjectRelation;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntDataProperty;
 import com.pig4cloud.pig.ontology.entity.OntObjectPropertyDomain;
@@ -25,6 +27,8 @@ import com.pig4cloud.pig.ontology.mapper.OntEntityTypeEquivalentMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeHierarchyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeLabelMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeMapper;
+import com.pig4cloud.pig.ontology.mapper.OntEntityInstanceMapper;
+import com.pig4cloud.pig.ontology.mapper.OntInstanceObjectRelationMapper;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntObjectPropertyDomainMapper;
 import com.pig4cloud.pig.ontology.mapper.OntObjectPropertyRangeMapper;
@@ -91,6 +95,10 @@ public class OntEntityTypeServiceImpl extends ServiceImpl<OntEntityTypeMapper, O
 	private final OntObjectPropertyDomainMapper objectPropertyDomainMapper;
 
 	private final OntObjectPropertyRangeMapper objectPropertyRangeMapper;
+
+	private final OntEntityInstanceMapper entityInstanceMapper;
+
+	private final OntInstanceObjectRelationMapper instanceObjectRelationMapper;
 
 	@Override
 	@Transactional(rollbackFor = Exception.class)
@@ -161,13 +169,16 @@ public class OntEntityTypeServiceImpl extends ServiceImpl<OntEntityTypeMapper, O
 			return R.failed(parentError);
 		}
 
+		// 抽象化前检查现有实例引用
+		if (BUILTIN.equals(request.getIsAbstract())) {
+			long instanceCount = entityInstanceMapper.selectCount(Wrappers.<OntEntityInstance>lambdaQuery()
+				.eq(OntEntityInstance::getRdfTypeId, old.getId()));
+			if (instanceCount > 0) {
+				return R.failed("该实体类型存在" + instanceCount + "个实例，不能设为抽象类");
+			}
+		}
+
 		this.update(Wrappers.<OntEntityType>lambdaUpdate()
-			.eq(OntEntityType::getId, old.getId())
-			.set(OntEntityType::getIri, context.expectedIri())
-			.set(OntEntityType::getName, request.getName())
-			.set(OntEntityType::getDefinition, request.getDefinition())
-			.set(OntEntityType::getIsAbstract,
-				StringUtils.hasText(request.getIsAbstract()) ? request.getIsAbstract() : EXTENSION)
 			.set(OntEntityType::getNamespaceId, request.getNamespaceId())
 			.set(OntEntityType::getSortOrder,
 				request.getSortOrder() == null ? old.getSortOrder() : request.getSortOrder())
@@ -222,6 +233,19 @@ public class OntEntityTypeServiceImpl extends ServiceImpl<OntEntityTypeMapper, O
 			.eq(OntObjectPropertyRange::getEntityTypeId, id));
 		if (objPropRangeCount > 0) {
 			return R.failed("该实体类型被对象属性引用为值域，不能删除");
+		}
+		// 检查实例rdf_type_id引用
+		long instanceCount = entityInstanceMapper.selectCount(Wrappers.<OntEntityInstance>lambdaQuery()
+			.eq(OntEntityInstance::getRdfTypeId, id));
+		if (instanceCount > 0) {
+			return R.failed("该实体类型被" + instanceCount + "个实例引用为rdf:type，不能删除");
+		}
+		// 检查对象断言object_entity_type_id引用
+		long relationTypeCount = instanceObjectRelationMapper
+			.selectCount(Wrappers.<OntInstanceObjectRelation>lambdaQuery()
+				.eq(OntInstanceObjectRelation::getObjectEntityTypeId, id));
+		if (relationTypeCount > 0) {
+			return R.failed("该实体类型被对象断言引用为ENTITY_TYPE客体，不能删除");
 		}
 		hierarchyMapper.delete(Wrappers.<OntEntityTypeHierarchy>lambdaQuery()
 			.eq(OntEntityTypeHierarchy::getChildId, id));
