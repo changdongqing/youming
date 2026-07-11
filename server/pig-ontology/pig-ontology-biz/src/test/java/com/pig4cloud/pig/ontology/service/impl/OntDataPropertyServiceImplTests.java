@@ -17,6 +17,7 @@ import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntOntologyProject;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyEnumMapper;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyLabelMapper;
+import com.pig4cloud.pig.ontology.mapper.OntAxiomRuleTargetMapper;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeHierarchyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeLabelMapper;
@@ -84,12 +85,16 @@ class OntDataPropertyServiceImplTests {
 	@Mock
 	private OntUnitCategoryMapper unitCategoryMapper;
 
+	@Mock
+	private OntAxiomRuleTargetMapper axiomRuleTargetMapper;
+
 	private OntDataPropertyServiceImpl service;
 
 	@BeforeEach
 	void setUp() {
 		service = new OntDataPropertyServiceImpl(labelMapper, enumMapper, entityTypeMapper,
-			entityTypeLabelMapper, hierarchyMapper, namespaceMapper, ontologyProjectMapper, unitCategoryMapper);
+			entityTypeLabelMapper, hierarchyMapper, namespaceMapper, ontologyProjectMapper, unitCategoryMapper,
+			axiomRuleTargetMapper);
 		ReflectionTestUtils.setField(service, "baseMapper", dataPropertyMapper);
 	}
 

@@ -13,6 +13,7 @@ import com.pig4cloud.pig.common.core.util.R;
 import com.pig4cloud.pig.ontology.dto.OntObjectPropertyCreateDTO;
 import com.pig4cloud.pig.ontology.dto.OntObjectPropertyQuery;
 import com.pig4cloud.pig.ontology.dto.OntObjectPropertyUpdateDTO;
+import com.pig4cloud.pig.ontology.entity.OntAxiomRuleTarget;
 import com.pig4cloud.pig.ontology.entity.OntEntityType;
 import com.pig4cloud.pig.ontology.entity.OntEntityTypeHierarchy;
 import com.pig4cloud.pig.ontology.entity.OntEntityTypeLabel;
@@ -22,6 +23,7 @@ import com.pig4cloud.pig.ontology.entity.OntObjectPropertyDomain;
 import com.pig4cloud.pig.ontology.entity.OntObjectPropertyLabel;
 import com.pig4cloud.pig.ontology.entity.OntObjectPropertyRange;
 import com.pig4cloud.pig.ontology.entity.OntOntologyProject;
+import com.pig4cloud.pig.ontology.mapper.OntAxiomRuleTargetMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeHierarchyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeLabelMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeMapper;
@@ -102,6 +104,8 @@ public class OntObjectPropertyServiceImpl extends ServiceImpl<OntObjectPropertyM
 	private final OntOntologyProjectMapper ontologyProjectMapper;
 
 	private final OntIriUniquenessService iriUniquenessService;
+
+	private final OntAxiomRuleTargetMapper axiomRuleTargetMapper;
 
 	// ==================== 查询 ====================
 
@@ -419,6 +423,12 @@ public class OntObjectPropertyServiceImpl extends ServiceImpl<OntObjectPropertyM
 		}
 		if (BUILTIN.equals(prop.getIsBuiltin())) {
 			return R.failed("内置对象属性不可删除");
+		}
+		// 检查公理规则目标引用
+		long axiomTargetCount = axiomRuleTargetMapper.selectCount(Wrappers.<OntAxiomRuleTarget>lambdaQuery()
+			.eq(OntAxiomRuleTarget::getObjectPropertyId, id));
+		if (axiomTargetCount > 0) {
+			return R.failed("该对象属性被公理规则引用，不能删除");
 		}
 		// 解除逆属性关系
 		if (prop.getInverseOfId() != null) {

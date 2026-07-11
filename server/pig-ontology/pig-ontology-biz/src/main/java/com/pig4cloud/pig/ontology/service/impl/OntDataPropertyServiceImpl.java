@@ -14,6 +14,7 @@ import com.pig4cloud.pig.ontology.dto.OntDataPropertyCreateDTO;
 import com.pig4cloud.pig.ontology.dto.OntDataPropertyQuery;
 import com.pig4cloud.pig.ontology.dto.OntDataPropertyUpdateDTO;
 import com.pig4cloud.pig.ontology.entity.OntDataProperty;
+import com.pig4cloud.pig.ontology.entity.OntAxiomRuleTarget;
 import com.pig4cloud.pig.ontology.entity.OntDataPropertyEnum;
 import com.pig4cloud.pig.ontology.entity.OntDataPropertyLabel;
 import com.pig4cloud.pig.ontology.entity.OntEntityType;
@@ -22,6 +23,7 @@ import com.pig4cloud.pig.ontology.entity.OntEntityTypeLabel;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntOntologyProject;
 import com.pig4cloud.pig.ontology.entity.OntUnitCategory;
+import com.pig4cloud.pig.ontology.mapper.OntAxiomRuleTargetMapper;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyEnumMapper;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyLabelMapper;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
@@ -98,6 +100,8 @@ public class OntDataPropertyServiceImpl extends ServiceImpl<OntDataPropertyMappe
 	private final OntOntologyProjectMapper ontologyProjectMapper;
 
 	private final OntUnitCategoryMapper unitCategoryMapper;
+
+	private final OntAxiomRuleTargetMapper axiomRuleTargetMapper;
 
 	@Override
 	public IPage<OntDataPropertySummaryVO> pageSummary(Page<OntDataProperty> page, OntDataPropertyQuery query) {
@@ -366,7 +370,12 @@ public class OntDataPropertyServiceImpl extends ServiceImpl<OntDataPropertyMappe
 		if (BUILTIN.equals(dataProperty.getIsBuiltin())) {
 			return R.failed("内置数据属性不可删除");
 		}
-		// 后续公理/实例模块上线后追加引用检查
+		// 检查公理规则目标引用
+		long axiomTargetCount = axiomRuleTargetMapper.selectCount(Wrappers.<OntAxiomRuleTarget>lambdaQuery()
+			.eq(OntAxiomRuleTarget::getDataPropertyId, id));
+		if (axiomTargetCount > 0) {
+			return R.failed("该数据属性被公理规则引用，不能删除");
+		}
 		enumMapper.delete(Wrappers.<OntDataPropertyEnum>lambdaQuery()
 			.eq(OntDataPropertyEnum::getDataPropertyId, id));
 		labelMapper.delete(Wrappers.<OntDataPropertyLabel>lambdaQuery()

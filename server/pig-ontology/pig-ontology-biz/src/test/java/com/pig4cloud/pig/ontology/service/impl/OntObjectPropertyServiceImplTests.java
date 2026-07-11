@@ -94,12 +94,16 @@ class OntObjectPropertyServiceImplTests {
 	@Mock
 	private OntIriUniquenessService iriUniquenessService;
 
+	@Mock
+	private com.pig4cloud.pig.ontology.mapper.OntAxiomRuleTargetMapper axiomRuleTargetMapper;
+
 	private OntObjectPropertyServiceImpl service;
 
 	@BeforeEach
 	void setUp() {
 		service = new OntObjectPropertyServiceImpl(domainMapper, rangeMapper, labelMapper, entityTypeMapper,
-				entityTypeLabelMapper, hierarchyMapper, namespaceMapper, ontologyProjectMapper, iriUniquenessService);
+				entityTypeLabelMapper, hierarchyMapper, namespaceMapper, ontologyProjectMapper, iriUniquenessService,
+				axiomRuleTargetMapper);
 		ReflectionTestUtils.setField(service, "baseMapper", objectPropertyMapper);
 	}
 
