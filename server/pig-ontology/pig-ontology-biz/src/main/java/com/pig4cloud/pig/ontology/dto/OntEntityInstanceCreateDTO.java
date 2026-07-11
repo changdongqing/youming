@@ -5,6 +5,7 @@
 package com.pig4cloud.pig.ontology.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -50,9 +51,13 @@ public class OntEntityInstanceCreateDTO {
 	@Schema(description = "治理备注")
 	private String remarks;
 
+	@Valid
+	@Size(max = 200, message = "单次提交数据属性值不能超过200条")
 	@Schema(description = "数据属性值集合")
 	private List<OntInstanceDataValueDTO> dataValues;
 
+	@Valid
+	@Size(max = 200, message = "单次提交对象属性断言不能超过200条")
 	@Schema(description = "对象属性断言集合（仅指向已存在实例）")
 	private List<OntInstanceObjectRelationDTO> objectRelations;
 

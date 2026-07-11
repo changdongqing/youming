@@ -93,20 +93,28 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 			return R.ok(this.getById(old.getId()));
 		}
 
-		long entityTypeCount = entityTypeMapper.selectCount(Wrappers.<OntEntityType>lambdaQuery()
-			.eq(OntEntityType::getNamespaceId, old.getId()));
-		if (entityTypeCount > 0 && !Objects.equals(old.getUri(), namespace.getUri())) {
-			return R.failed("该命名空间已被实体类型引用，命名空间URI不可修改");
-		}
-		long dataPropertyCount = dataPropertyMapper.selectCount(Wrappers.<OntDataProperty>lambdaQuery()
-			.eq(OntDataProperty::getNamespaceId, old.getId()));
-		if (dataPropertyCount > 0 && !Objects.equals(old.getUri(), namespace.getUri())) {
-			return R.failed("该命名空间已被数据属性引用，命名空间URI不可修改");
-		}
-		long objectPropertyCount = objectPropertyMapper.selectCount(Wrappers.<OntObjectProperty>lambdaQuery()
-			.eq(OntObjectProperty::getNamespaceId, old.getId()));
-		if (objectPropertyCount > 0 && !Objects.equals(old.getUri(), namespace.getUri())) {
-			return R.failed("该命名空间已被对象属性引用，命名空间URI不可修改");
+		boolean uriChanged = !Objects.equals(old.getUri(), namespace.getUri());
+		if (uriChanged) {
+			long entityTypeCount = entityTypeMapper.selectCount(Wrappers.<OntEntityType>lambdaQuery()
+				.eq(OntEntityType::getNamespaceId, old.getId()));
+			if (entityTypeCount > 0) {
+				return R.failed("该命名空间已被" + entityTypeCount + "个实体类型引用，命名空间URI不可修改（请使用relocate流程重算IRI）");
+			}
+			long dataPropertyCount = dataPropertyMapper.selectCount(Wrappers.<OntDataProperty>lambdaQuery()
+				.eq(OntDataProperty::getNamespaceId, old.getId()));
+			if (dataPropertyCount > 0) {
+				return R.failed("该命名空间已被" + dataPropertyCount + "个数据属性引用，命名空间URI不可修改（请使用relocate流程重算IRI）");
+			}
+			long objectPropertyCount = objectPropertyMapper.selectCount(Wrappers.<OntObjectProperty>lambdaQuery()
+				.eq(OntObjectProperty::getNamespaceId, old.getId()));
+			if (objectPropertyCount > 0) {
+				return R.failed("该命名空间已被" + objectPropertyCount + "个对象属性引用，命名空间URI不可修改（请使用relocate流程重算IRI）");
+			}
+			long instanceCount = entityInstanceMapper.selectCount(Wrappers.<OntEntityInstance>lambdaQuery()
+				.eq(OntEntityInstance::getNamespaceId, old.getId()));
+			if (instanceCount > 0) {
+				return R.failed("该命名空间已被" + instanceCount + "个实例引用，命名空间URI不可修改（请使用relocate流程重算实例IRI）");
+			}
 		}
 		R<OntNamespace> validation = validateNamespace(namespace, true);
 		if (validation.getCode() != 0) {

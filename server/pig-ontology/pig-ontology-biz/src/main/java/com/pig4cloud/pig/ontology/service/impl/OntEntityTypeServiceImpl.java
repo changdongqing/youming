@@ -70,6 +70,9 @@ public class OntEntityTypeServiceImpl extends ServiceImpl<OntEntityTypeMapper, O
 
 	private static final String EXTENSION = "0";
 
+	/** is_abstract 取值：1 表示抽象类。与 is_builtin 的 "1" 同值但语义不同，单独常量避免误读。 */
+	private static final String ABSTRACT = "1";
+
 	private static final String ZH = "zh";
 
 	private static final int MAX_DEPTH = 100;
@@ -170,7 +173,7 @@ public class OntEntityTypeServiceImpl extends ServiceImpl<OntEntityTypeMapper, O
 		}
 
 		// 抽象化前检查现有实例引用
-		if (BUILTIN.equals(request.getIsAbstract())) {
+		if (ABSTRACT.equals(request.getIsAbstract())) {
 			long instanceCount = entityInstanceMapper.selectCount(Wrappers.<OntEntityInstance>lambdaQuery()
 				.eq(OntEntityInstance::getRdfTypeId, old.getId()));
 			if (instanceCount > 0) {
@@ -179,6 +182,12 @@ public class OntEntityTypeServiceImpl extends ServiceImpl<OntEntityTypeMapper, O
 		}
 
 		this.update(Wrappers.<OntEntityType>lambdaUpdate()
+			.eq(OntEntityType::getId, old.getId())
+			.set(OntEntityType::getIri, context.expectedIri())
+			.set(OntEntityType::getName, request.getName())
+			.set(OntEntityType::getDefinition, request.getDefinition())
+			.set(OntEntityType::getIsAbstract,
+				StringUtils.hasText(request.getIsAbstract()) ? request.getIsAbstract() : EXTENSION)
 			.set(OntEntityType::getNamespaceId, request.getNamespaceId())
 			.set(OntEntityType::getSortOrder,
 				request.getSortOrder() == null ? old.getSortOrder() : request.getSortOrder())

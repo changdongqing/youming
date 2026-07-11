@@ -258,7 +258,7 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 		OntNamespace namespace = namespaceMapper.selectById(request.getNamespaceId());
 		OntEntityType rdfType = entityTypeMapper.selectById(request.getRdfTypeId());
 
-		// 2. 使用ASSIGN_ID分配实例ID
+		// 2. 使用ASSIGN_ID分配实例ID（先保存以取得ID，再回填IRI；事务保证失败整体回滚）
 		OntEntityInstance instance = new OntEntityInstance();
 		instance.setOntologyId(ontologyId);
 		instance.setNamespaceId(request.getNamespaceId());
@@ -277,16 +277,14 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 				: rdfType.getName() + "_" + instance.getId();
 
 		if (!LOCAL_NAME_PATTERN.matcher(effectiveLocalName).matches()) {
-			this.removeById(instance.getId());
-			return R.failed("IRI本地名必须以字母开头，仅支持英文字母、数字、下划线和短横线");
+			throw new IllegalArgumentException("IRI本地名必须以字母开头，仅支持英文字母、数字、下划线和短横线");
 		}
 
 		// 4. 后端拼接完整IRI并调用全局唯一性校验
 		String expectedIri = namespace.getUri() + effectiveLocalName;
-		String iriConflict = iriUniquenessService.checkIriConflict(expectedIri, TABLE_NAME, null);
+		String iriConflict = iriUniquenessService.checkIriConflict(expectedIri, TABLE_NAME, instance.getId());
 		if (iriConflict != null) {
-			this.removeById(instance.getId());
-			return R.failed(iriConflict);
+			throw new IllegalArgumentException(iriConflict);
 		}
 		// 检查实例表内部冲突（排除自身）
 		long localConflict = this.count(Wrappers.<OntEntityInstance>lambdaQuery()
@@ -295,8 +293,7 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 			.eq(OntEntityInstance::getIriLocalName, effectiveLocalName)
 			.ne(OntEntityInstance::getId, instance.getId()));
 		if (localConflict > 0) {
-			this.removeById(instance.getId());
-			return R.failed("同一命名空间下IRI本地名已存在");
+			throw new IllegalArgumentException("同一命名空间下IRI本地名已存在");
 		}
 
 		instance.setIriLocalName(effectiveLocalName);
@@ -306,6 +303,16 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 		// 5. 校验并插入数据值
 		if (request.getDataValues() != null && !request.getDataValues().isEmpty()) {
 			Map<Long, Integer> ancestors = collectAncestorsWithDistance(rdfType.getId());
+			// 锁定涉及的 is_unique 数据属性行，避免并发唯一值穿透（设计§7.4-4）
+			request.getDataValues().stream()
+				.map(OntInstanceDataValueDTO::getDataPropertyId)
+				.distinct()
+				.map(dataPropertyMapper::selectById)
+				.filter(Objects::nonNull)
+				.filter(p -> BUILTIN.equals(p.getIsUnique()))
+				.map(OntDataProperty::getId)
+				.distinct()
+				.forEach(dataPropertyMapper::selectByIdForUpdate);
 			for (int i = 0; i < request.getDataValues().size(); i++) {
 				OntInstanceDataValueDTO dto = request.getDataValues().get(i);
 				String valError = validateDataValue(dto, instance.getId(), ontologyId, ancestors, true);
@@ -481,9 +488,22 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 		if (BUILTIN.equals(instance.getIsBuiltin())) {
 			return R.failed("内置实例语义值不可通过普通接口修改");
 		}
+		// 锁定实例行，串行化同实例的并发数据值写入
+		baseMapper.selectByIdForUpdate(instanceId);
 
 		OntEntityType rdfType = entityTypeMapper.selectById(instance.getRdfTypeId());
 		Map<Long, Integer> ancestors = collectAncestorsWithDistance(rdfType.getId());
+
+		// 完整校验前锁定涉及的 is_unique 数据属性行，避免并发唯一值穿透（设计§7.4-4）
+		Set<Long> uniquePropIds = dataValues.stream()
+			.map(OntInstanceDataValueDTO::getDataPropertyId)
+			.distinct()
+			.map(dataPropertyMapper::selectById)
+			.filter(Objects::nonNull)
+			.filter(p -> BUILTIN.equals(p.getIsUnique()))
+			.map(OntDataProperty::getId)
+			.collect(Collectors.toSet());
+		uniquePropIds.forEach(dataPropertyMapper::selectByIdForUpdate);
 
 		// 完整校验
 		for (int i = 0; i < dataValues.size(); i++) {
@@ -551,6 +571,16 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 		if (BUILTIN.equals(subject.getIsBuiltin())) {
 			return R.failed("内置实例断言不可通过普通接口增删");
 		}
+
+		// 按ID升序锁定主体实例和客体实例行，避免死锁（设计§7.4-5）
+		Long minId = Math.min(instanceId, request.getObjectInstanceId());
+		Long maxId = Math.max(instanceId, request.getObjectInstanceId());
+		baseMapper.selectByIdForUpdate(minId);
+		if (!minId.equals(maxId)) {
+			baseMapper.selectByIdForUpdate(maxId);
+		}
+		// 锁定对象属性行，串行化功能性断言并发校验（设计§7.4-3）
+		objectPropertyMapper.selectByIdForUpdate(request.getObjectPropertyId());
 
 		OntEntityType subjectType = entityTypeMapper.selectById(subject.getRdfTypeId());
 		String error = validateRelation(instanceId, request, subject.getOntologyId(), subjectType, false);
