@@ -121,7 +121,7 @@
 		</splitpanes>
 
 		<!-- 详情抽屉 -->
-		<el-drawer v-model="detailVisible" title="实例详情" size="60%" destroy-on-close>
+		<el-drawer v-model="detailVisible" title="实例详情" size="64%" destroy-on-close>
 			<template v-if="detailData">
 				<el-descriptions :column="2" border>
 					<el-descriptions-item label="IRI">{{ detailData.iri }}</el-descriptions-item>
@@ -129,13 +129,20 @@
 					<el-descriptions-item label="标签">{{ detailData.label }}</el-descriptions-item>
 					<el-descriptions-item label="类型">{{ detailData.rdfTypeLabel || detailData.rdfTypeName }}</el-descriptions-item>
 					<el-descriptions-item label="命名空间">{{ detailData.namespacePrefix }}</el-descriptions-item>
-					<el-descriptions-item label="来源">{{ detailData.sourceType }}</el-descriptions-item>
-					<el-descriptions-item label="声明模式">{{ detailData.declarationMode }}</el-descriptions-item>
+					<el-descriptions-item label="来源">{{ sourceTypeLabel(detailData.sourceType) }}</el-descriptions-item>
+					<el-descriptions-item label="声明模式">{{ declarationModeLabel(detailData.declarationMode) }}</el-descriptions-item>
 					<el-descriptions-item label="排序">{{ detailData.sortOrder }}</el-descriptions-item>
 					<el-descriptions-item v-if="detailData.remarks" label="备注">{{ detailData.remarks }}</el-descriptions-item>
 				</el-descriptions>
 
-				<el-divider content-position="left">数据属性值</el-divider>
+				<el-divider content-position="left">
+					<span>数据属性值</span>
+					<el-button
+						v-if="detailData.isBuiltin === '0'"
+						v-auth="'ontology_instance_edit'"
+						link type="primary" class="ml6" @click="openDataValueEditor"
+					>编辑数据值</el-button>
+				</el-divider>
 				<el-table :data="detailData.dataValues" border style="width: 100%">
 					<el-table-column prop="dataPropertyLabel" label="属性" min-width="100" show-overflow-tooltip>
 						<template #default="{ row }">{{ row.dataPropertyLabel || row.dataPropertyName }}</template>
@@ -148,12 +155,19 @@
 					<el-table-column prop="sortOrder" label="序" width="50" />
 				</el-table>
 
-				<el-divider content-position="left">出向断言</el-divider>
+				<el-divider content-position="left">
+					<span>出向断言</span>
+					<el-button
+						v-if="detailData.isBuiltin === '0'"
+						v-auth="'ontology_instance_edit'"
+						link type="primary" class="ml6" @click="openRelationEditor"
+					>管理断言</el-button>
+				</el-divider>
 				<el-table :data="detailData.outgoingRelations" border style="width: 100%">
 					<el-table-column label="谓词" min-width="100">
 						<template #default="{ row }">{{ row.objectPropertyLabel || row.objectPropertyName }}</template>
 					</el-table-column>
-					<el-table-column label="客体类型" width="100">
+					<el-table-column label="客体类型" width="110">
 						<template #default="{ row }">
 							<el-tag v-if="row.objectKind === 'ENTITY_TYPE'" size="small" type="warning">Schema资源</el-tag>
 							<el-tag v-else size="small">实例</el-tag>
@@ -174,11 +188,16 @@
 						<template #default="{ row }">{{ row.objectPropertyLabel || row.objectPropertyName }}</template>
 					</el-table-column>
 				</el-table>
+
+				<el-divider content-position="left">约束校验（SHACL）</el-divider>
+				<el-alert title="校验引擎能力待上线" type="info" :closable="false" show-icon>
+					<template #default>本期不执行 SHACL / OWL 一致性推理，结果以后续校验引擎模块为准。</template>
+				</el-alert>
 			</template>
 		</el-drawer>
 
 		<!-- 新增/编辑对话框 -->
-		<el-dialog v-model="dialog.visible" :title="dialog.title" width="780px" destroy-on-close>
+		<el-dialog v-model="dialog.visible" :title="dialog.title" width="820px" destroy-on-close>
 			<el-form ref="formRef" :model="form" :rules="rules" label-width="120px">
 				<el-divider content-position="left">基本信息</el-divider>
 				<el-form-item label="命名空间" prop="namespaceId">
@@ -187,15 +206,15 @@
 					</el-select>
 				</el-form-item>
 				<el-form-item label="实体类型" prop="rdfTypeId">
-					<el-select v-model="form.rdfTypeId" :disabled="isBuiltinEdit || !!form.id" filterable placeholder="选择实体类型" style="width: 100%">
+					<el-select v-model="form.rdfTypeId" :disabled="isBuiltinEdit || !!form.id" filterable placeholder="选择实体类型" style="width: 100%" @change="onRdfTypeChange">
 						<el-option v-for="item in entityTypeOptions" :key="item.id" :label="item.name" :value="item.id" />
 					</el-select>
 				</el-form-item>
 				<el-form-item label="IRI本地名" prop="iriLocalName">
-					<el-input v-model="form.iriLocalName" :disabled="isBuiltinEdit" :placeholder="form.id ? '' : '留空则自动生成'" />
+					<el-input v-model="form.iriLocalName" :disabled="isBuiltinEdit" :placeholder="form.id ? '' : '留空则自动生成'" maxlength="128" />
 				</el-form-item>
 				<el-form-item label="IRI预览" prop="iri">
-					<el-input :model-value="iriPreview" readonly placeholder="由后端根据命名空间和IRI本地名生成" />
+					<el-input :model-value="iriPreview" readonly placeholder="由后端根据命名空间和IRI本地名生成（仅供参考）" />
 				</el-form-item>
 				<el-form-item label="标签" prop="label">
 					<el-input v-model="form.label" placeholder="UI显示标签" maxlength="255" show-word-limit />
@@ -207,22 +226,143 @@
 				<el-form-item label="备注" prop="remarks">
 					<el-input v-model="form.remarks" type="textarea" maxlength="255" show-word-limit />
 				</el-form-item>
+
+				<!-- Schema 驱动数据属性值表单（仅扩展实例新增时可用） -->
+				<template v-if="!isBuiltinEdit && !form.id && formMeta">
+					<el-divider content-position="left">
+						<span>数据属性值</span>
+						<span class="form-hint">（可选，创建后也可在详情中编辑）</span>
+					</el-divider>
+					<el-form-item
+						v-for="propMeta in formMeta.applicableDataProperties"
+						:key="propMeta.dataPropertyId"
+						:label="propMeta.dataPropertyLabel || propMeta.dataPropertyName"
+					>
+						<template #label>
+							<span>{{ propMeta.dataPropertyLabel || propMeta.dataPropertyName }}</span>
+							<el-tag v-if="propMeta.inherited" size="small" type="info" class="ml6">继承</el-tag>
+							<el-tag v-if="propMeta.isUnique === '1'" size="small" type="warning" class="ml6">唯一</el-tag>
+						</template>
+						<instance-value-field
+							:prop-meta="propMeta"
+							:enum-options="enumOptionsMap[propMeta.dataPropertyId] || []"
+							:unit-options="unitOptionsFor(propMeta.unitCategoryId)"
+							:values="dataValueDrafts[propMeta.dataPropertyId] || []"
+							@update:values="updateDataValueDraft(propMeta.dataPropertyId, $event)"
+						/>
+					</el-form-item>
+					<el-empty v-if="formMeta.applicableDataProperties.length === 0" description="该实体类型暂无可赋值的数据属性" :image-size="60" />
+				</template>
 			</el-form>
 			<template #footer>
 				<el-button @click="dialog.visible = false">取消</el-button>
 				<el-button type="primary" :loading="dialog.loading" @click="submit">确定</el-button>
 			</template>
 		</el-dialog>
+
+		<!-- 数据值整体编辑对话框（详情抽屉入口） -->
+		<el-dialog v-model="dataValueDialog.visible" title="编辑数据属性值" width="820px" destroy-on-close>
+			<div v-loading="dataValueDialog.loading">
+				<el-alert v-if="dataValueDialog.detail" type="info" :closable="false" show-icon class="mb8">
+					<template #default>整体替换「{{ dataValueDialog.detail.label || dataValueDialog.detail.iriLocalName }}」的全部数据属性值。</template>
+				</el-alert>
+				<el-form label-width="140px" v-if="dataValueDialog.formMeta">
+					<el-form-item
+						v-for="propMeta in dataValueDialog.formMeta.applicableDataProperties"
+						:key="propMeta.dataPropertyId"
+						:label="propMeta.dataPropertyLabel || propMeta.dataPropertyName"
+					>
+						<template #label>
+							<span>{{ propMeta.dataPropertyLabel || propMeta.dataPropertyName }}</span>
+							<el-tag v-if="propMeta.inherited" size="small" type="info" class="ml6">继承</el-tag>
+						</template>
+						<instance-value-field
+							:prop-meta="propMeta"
+							:enum-options="enumOptionsMap[propMeta.dataPropertyId] || []"
+							:unit-options="unitOptionsFor(propMeta.unitCategoryId)"
+							:values="dataValueDrafts[propMeta.dataPropertyId] || []"
+							@update:values="updateDataValueDraft(propMeta.dataPropertyId, $event)"
+						/>
+					</el-form-item>
+					<el-empty v-if="dataValueDialog.formMeta.applicableDataProperties.length === 0" description="该实体类型暂无可赋值的数据属性" :image-size="60" />
+				</el-form>
+			</div>
+			<template #footer>
+				<el-button @click="dataValueDialog.visible = false">取消</el-button>
+				<el-button type="primary" :loading="dataValueDialog.saving" @click="saveDataValues">保存</el-button>
+			</template>
+		</el-dialog>
+
+		<!-- 关系编辑器对话框（详情抽屉入口） -->
+		<el-dialog v-model="relationDialog.visible" title="管理对象属性断言" width="820px" destroy-on-close>
+			<div v-loading="relationDialog.loading">
+				<el-alert v-if="relationDialog.formMeta" type="info" :closable="false" show-icon class="mb8">
+					<template #default>为「{{ relationDialog.detail?.label || relationDialog.detail?.iriLocalName }}」添加出向断言。功能性属性仅单选，Schema 资源客体只读。</template>
+				</el-alert>
+				<div v-if="relationDialog.formMeta">
+					<el-form
+						v-for="propMeta in relationDialog.formMeta.applicableObjectProperties"
+						:key="propMeta.objectPropertyId"
+						label-width="160px"
+						class="relation-prop-form"
+					>
+						<el-form-item>
+							<template #label>
+								<span>{{ propMeta.objectPropertyLabel || propMeta.objectPropertyName }}</span>
+								<el-tag v-if="propMeta.isFunctional === '1'" size="small" type="warning" class="ml6">功能性</el-tag>
+								<el-tag v-if="propMeta.inherited" size="small" type="info" class="ml6">继承</el-tag>
+							</template>
+							<instance-relation-field
+								:subject-id="relationDialog.detail?.id"
+								:prop-meta="propMeta"
+								:existing-relations="existingRelationsByProp(propMeta.objectPropertyId)"
+								@add="handleAddRelation(propMeta.objectPropertyId, $event)"
+								@remove="handleRemoveRelation"
+							/>
+						</el-form-item>
+					</el-form>
+					<el-empty v-if="relationDialog.formMeta.applicableObjectProperties.length === 0" description="该实体类型暂无可声明的对象属性" :image-size="60" />
+				</div>
+			</div>
+		</el-dialog>
 	</div>
 </template>
 
 <script lang="ts" name="ontologyInstance" setup>
-import { addInstanceObj, delInstanceObj, fetchInstanceById, fetchInstancePage, putInstanceObj } from '/@/api/ontology/instance';
+import {
+	addInstanceObj,
+	delInstanceObj,
+	fetchInstanceById,
+	fetchInstancePage,
+	putInstanceObj,
+	fetchInstanceFormMeta,
+	putInstanceDataValues,
+	fetchInstanceOptions,
+	addInstanceRelation,
+	delInstanceRelation,
+} from '/@/api/ontology/instance';
 import { fetchEntityTypeList, fetchEntityTypeTree } from '/@/api/ontology/entity-type';
 import { fetchNamespaceList } from '/@/api/ontology/namespace';
+import { fetchDataPropertyById } from '/@/api/ontology/data-property';
+import { fetchUnitList } from '/@/api/ontology/unit';
 import { useMessage, useMessageBox } from '/@/hooks/message';
 import { filterEntityTypeTree } from '/@/views/ontology/entity-type/tree-utils';
-import type { InstanceDetail, InstanceForm, InstanceQuery, InstanceSummary, InstanceCreateRequest, InstanceUpdateRequest, OntologyId } from '/@/types/ontology/instance';
+import InstanceValueField from './instance-value-field.vue';
+import InstanceRelationField from './instance-relation-field.vue';
+import type {
+	InstanceDetail,
+	InstanceForm,
+	InstanceQuery,
+	InstanceSummary,
+	InstanceCreateRequest,
+	InstanceUpdateRequest,
+	InstanceFormMeta,
+	InstanceDataValueDTO,
+	InstanceDataValueVO,
+	InstanceObjectRelationVO,
+	DataPropertyMeta,
+	OntologyId,
+} from '/@/types/ontology/instance';
 import type { EntityTypeTreeNode } from '/@/types/ontology/entity-type';
 
 const pageRef = ref<HTMLElement>();
@@ -278,6 +418,19 @@ const iriPreview = computed(() => {
 });
 
 const filteredTree = computed(() => filterEntityTypeTree(treeData.value, treeKeyword.value));
+
+// ==================== Schema 驱动表单状态 ====================
+const formMeta = ref<InstanceFormMeta | null>(null);
+/** 枚举值缓存：dataPropertyId -> 枚举选项列表 */
+const enumOptionsMap = reactive<Record<string, { value: string; canonical?: string }[]>>({});
+/** 单位缓存：unitCategoryId -> 单位选项列表 */
+const unitOptionsCache = reactive<Record<string, { id: OntologyId; symbol: string; name?: string }[]>>({});
+/** 数据值草稿：dataPropertyId -> 该属性的多值列表（创建/编辑共用） */
+const dataValueDrafts = reactive<Record<string, InstanceDataValueDTO[]>>({});
+
+/** 枚举标签映射 */
+const sourceTypeLabel = (t: string) => (t === 'APPENDIX_D' ? '附录D' : t === 'EXTENSION' ? '扩展' : t);
+const declarationModeLabel = (m: string) => (m === 'EXPLICIT' ? '显式声明' : m === 'REFERENCE_ONLY' ? '仅引用' : m);
 
 const getErrorMessage = (error: unknown, fallback: string) => {
 	if (error && typeof error === 'object' && 'msg' in error) return String((error as { msg?: unknown }).msg || fallback);
@@ -367,6 +520,104 @@ const loadEntityTypeOptions = async () => {
 	}
 };
 
+/** 加载实体类型的动态表单元数据 */
+const loadFormMeta = async (entityTypeId: OntologyId): Promise<InstanceFormMeta | null> => {
+	try {
+		const response = await fetchInstanceFormMeta(entityTypeId);
+		return (response.data || null) as InstanceFormMeta | null;
+	} catch (error: unknown) {
+		useMessage().error(getErrorMessage(error, '加载表单元数据失败'));
+		return null;
+	}
+};
+
+/** 确保枚举值已加载到缓存（CLOSED/OPEN_ENUM 属性按需懒加载） */
+const ensureEnumOptions = async (propMeta: DataPropertyMeta) => {
+	if (propMeta.valueMode !== 'CLOSED_ENUM' && propMeta.valueMode !== 'OPEN_ENUM') return;
+	if (enumOptionsMap[propMeta.dataPropertyId]) return;
+	try {
+		const response = await fetchDataPropertyById(propMeta.dataPropertyId);
+		const detail = response.data as { enums?: { enumValue: string; canonicalValue?: string }[] } | undefined;
+		const enums = detail?.enums || [];
+		enumOptionsMap[propMeta.dataPropertyId] = enums.map((e) => ({ value: e.enumValue, canonical: e.canonicalValue }));
+	} catch {
+		enumOptionsMap[propMeta.dataPropertyId] = [];
+	}
+};
+
+/** 获取某单位分类下的单位选项（UNIT_REF 属性按需懒加载） */
+const unitOptionsFor = (unitCategoryId?: OntologyId) => {
+	if (!unitCategoryId) return [];
+	if (!unitOptionsCache[unitCategoryId]) return [];
+	return unitOptionsCache[unitCategoryId];
+};
+
+/** 预加载 UNIT_REF 属性涉及的单位分类 */
+const ensureUnitOptions = async (metas: DataPropertyMeta[]) => {
+	const categoryIds = Array.from(new Set(
+		metas.filter((m) => m.baseType === 'UNIT_REF' && m.unitCategoryId).map((m) => m.unitCategoryId!)
+	));
+	for (const catId of categoryIds) {
+		if (unitOptionsCache[catId]) continue;
+		try {
+			const response = await fetchUnitList({ categoryId: catId });
+			const list = (response.data || []) as { id: OntologyId; unitSymbol: string; unitName?: string }[];
+			unitOptionsCache[catId] = list.map((u) => ({ id: u.id, symbol: u.unitSymbol, name: u.unitName }));
+		} catch {
+			unitOptionsCache[catId] = [];
+		}
+	}
+};
+
+/** 初始化数据值草稿（从详情已有值填充，或创建空草稿） */
+const initDataValueDrafts = (meta: InstanceFormMeta, existing?: InstanceDataValueVO[] | InstanceDataValueDTO[]) => {
+	// 清空旧草稿
+	Object.keys(dataValueDrafts).forEach((k) => delete dataValueDrafts[k]);
+	for (const propMeta of meta.applicableDataProperties) {
+		const existingValues = (existing || []).filter((v) => String((v as { dataPropertyId: OntologyId }).dataPropertyId) === propMeta.dataPropertyId);
+		dataValueDrafts[propMeta.dataPropertyId] = existingValues.map((v) => ({
+			dataPropertyId: propMeta.dataPropertyId,
+			literalValue: (v as { literalValue: string }).literalValue,
+			literalType: (v as { literalType: InstanceDataValueDTO['literalType'] }).literalType,
+			unitId: (v as { unitId?: OntologyId }).unitId,
+			literalSymbol: (v as { literalSymbol?: string }).literalSymbol,
+			sortOrder: (v as { sortOrder: number }).sortOrder,
+		}));
+	}
+};
+
+/** 收集草稿为提交用的扁平 dataValues 数组 */
+const collectDataValueDrafts = (): InstanceDataValueDTO[] => {
+	const result: InstanceDataValueDTO[] = [];
+	let order = 1;
+	for (const key of Object.keys(dataValueDrafts)) {
+		for (const dv of dataValueDrafts[key]) {
+			result.push({ ...dv, sortOrder: dv.sortOrder ?? order });
+			order++;
+		}
+	}
+	return result;
+};
+
+const updateDataValueDraft = (propId: OntologyId, values: InstanceDataValueDTO[]) => {
+	dataValueDrafts[propId] = values;
+};
+
+/** 实体类型变化时加载表单元数据 + 枚举/单位选项 */
+const onRdfTypeChange = async (typeId?: OntologyId) => {
+	formMeta.value = null;
+	if (!typeId) return;
+	const meta = await loadFormMeta(typeId);
+	formMeta.value = meta;
+	if (meta) {
+		await Promise.all([
+			...meta.applicableDataProperties.map((p) => ensureEnumOptions(p)),
+			ensureUnitOptions(meta.applicableDataProperties),
+		]);
+		initDataValueDrafts(meta);
+	}
+};
+
 const openDetail = async (row: InstanceSummary) => {
 	try {
 		const response = await fetchInstanceById(row.id);
@@ -379,10 +630,11 @@ const openDetail = async (row: InstanceSummary) => {
 
 const openCreateDialog = () => {
 	Object.assign(form, createEmptyForm());
-	delete form.id;
-	delete form.isBuiltin;
+	formMeta.value = null;
+	Object.keys(dataValueDrafts).forEach((k) => delete dataValueDrafts[k]);
 	if (selectedTypeId.value) {
 		form.rdfTypeId = selectedTypeId.value;
+		void onRdfTypeChange(selectedTypeId.value);
 	}
 	dialog.title = '新增实例';
 	dialog.visible = true;
@@ -450,6 +702,7 @@ const submit = async () => {
 					label: form.label || undefined,
 					sortOrder: form.sortOrder,
 					remarks: form.remarks || undefined,
+					dataValues: collectDataValueDrafts().length > 0 ? collectDataValueDrafts() : undefined,
 				};
 				await addInstanceObj(payload);
 			}
@@ -470,7 +723,7 @@ const handleDelete = (row: InstanceSummary) => {
 		return;
 	}
 	useMessageBox()
-		.confirm('确认删除该实例？删除后数据值和出向断言将一并清除。')
+		.confirm('确认删除该实例？相关数据（数据值、出向断言）将被清除。')
 		.then(async () => {
 			try {
 				await delInstanceObj(row.id);
@@ -481,6 +734,117 @@ const handleDelete = (row: InstanceSummary) => {
 			}
 		})
 		.catch(() => {});
+};
+
+// ==================== 数据值编辑器（详情入口） ====================
+const dataValueDialog = reactive<{ visible: boolean; loading: boolean; saving: boolean; detail: InstanceDetail | null; formMeta: InstanceFormMeta | null }>({
+	visible: false,
+	loading: false,
+	saving: false,
+	detail: null,
+	formMeta: null,
+});
+
+const openDataValueEditor = async () => {
+	if (!detailData.value) return;
+	dataValueDialog.detail = detailData.value;
+	dataValueDialog.visible = true;
+	dataValueDialog.loading = true;
+	dataValueDialog.formMeta = null;
+	try {
+		const meta = await loadFormMeta(detailData.value.rdfTypeId);
+		dataValueDialog.formMeta = meta;
+		if (meta) {
+			await Promise.all([
+				...meta.applicableDataProperties.map((p) => ensureEnumOptions(p)),
+				ensureUnitOptions(meta.applicableDataProperties),
+			]);
+			// InstanceDataValueVO 结构与草稿初始化兼容
+			initDataValueDrafts(meta, detailData.value.dataValues as unknown as InstanceDataValueDTO[]);
+		}
+	} catch (error: unknown) {
+		useMessage().error(getErrorMessage(error, '加载数据值编辑器失败'));
+	} finally {
+		dataValueDialog.loading = false;
+	}
+};
+
+const saveDataValues = async () => {
+	if (!dataValueDialog.detail) return;
+	dataValueDialog.saving = true;
+	try {
+		const drafts = collectDataValueDrafts();
+		await putInstanceDataValues(dataValueDialog.detail.id, drafts);
+		useMessage().success('数据值已更新');
+		dataValueDialog.visible = false;
+		// 刷新详情
+		await openDetail({ id: dataValueDialog.detail.id } as InstanceSummary);
+	} catch (error: unknown) {
+		useMessage().error(getErrorMessage(error, '保存数据值失败'));
+	} finally {
+		dataValueDialog.saving = false;
+	}
+};
+
+// ==================== 关系编辑器（详情入口） ====================
+const relationDialog = reactive<{ visible: boolean; loading: boolean; detail: InstanceDetail | null; formMeta: InstanceFormMeta | null }>({
+	visible: false,
+	loading: false,
+	detail: null,
+	formMeta: null,
+});
+
+/** 取某对象属性下已有的出向断言（用于已存在断言展示与删除） */
+const existingRelationsByProp = (objectPropertyId: OntologyId): InstanceObjectRelationVO[] => {
+	if (!relationDialog.detail) return [];
+	return (relationDialog.detail.outgoingRelations || []).filter((r: InstanceObjectRelationVO) => r.objectPropertyId === objectPropertyId);
+};
+
+const openRelationEditor = async () => {
+	if (!detailData.value) return;
+	relationDialog.detail = detailData.value;
+	relationDialog.visible = true;
+	relationDialog.loading = true;
+	relationDialog.formMeta = null;
+	try {
+		const meta = await loadFormMeta(detailData.value.rdfTypeId);
+		relationDialog.formMeta = meta;
+	} catch (error: unknown) {
+		useMessage().error(getErrorMessage(error, '加载关系编辑器失败'));
+	} finally {
+		relationDialog.loading = false;
+	}
+};
+
+const handleAddRelation = async (objectPropertyId: OntologyId, objectInstanceId: OntologyId) => {
+	if (!relationDialog.detail) return;
+	try {
+		await addInstanceRelation(relationDialog.detail.id, { objectPropertyId, objectInstanceId });
+		useMessage().success('断言已添加');
+		// 刷新详情数据（关系编辑器与详情抽屉共用 detailData）
+		const response = await fetchInstanceById(relationDialog.detail.id);
+		relationDialog.detail = response.data as InstanceDetail;
+		if (detailData.value && detailData.value.id === relationDialog.detail.id) {
+			detailData.value = relationDialog.detail;
+		}
+	} catch (error: unknown) {
+		useMessage().error(getErrorMessage(error, '添加断言失败'));
+	}
+};
+
+const handleRemoveRelation = async (relationId: OntologyId) => {
+	if (!relationDialog.detail) return;
+	try {
+		await delInstanceRelation(relationDialog.detail.id, relationId);
+		useMessage().success('断言已删除');
+		const response = await fetchInstanceById(relationDialog.detail.id);
+		relationDialog.detail = response.data as InstanceDetail;
+		if (detailData.value && detailData.value.id === relationDialog.detail.id) {
+			detailData.value = relationDialog.detail;
+		}
+	} catch (error: unknown) {
+		useMessage().error(getErrorMessage(error, '删除断言失败'));
+	}
 };
 
 const refreshAll = async () => {
@@ -528,5 +892,19 @@ onUnmounted(() => {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+.form-hint {
+	font-size: 12px;
+	color: var(--el-text-color-secondary);
+	margin-left: 4px;
+}
+.relation-prop-form {
+	margin-bottom: 8px;
+}
+.ml6 {
+	margin-left: 6px;
+}
+.mb8 {
+	margin-bottom: 8px;
 }
 </style>

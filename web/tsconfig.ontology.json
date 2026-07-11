@@ -21,8 +21,11 @@
 		"src/views/ontology/axiom-rule/index.vue",
 		"src/views/ontology/axiom-rule/rule-form.ts",
 		"src/api/ontology/instance.ts",
+		"src/api/ontology/unit.ts",
 		"src/views/ontology/instance/index.vue",
 		"src/views/ontology/instance/instance-form.ts",
+		"src/views/ontology/instance/instance-value-field.vue",
+		"src/views/ontology/instance/instance-relation-field.vue",
 		"src/views/ontology/instance/relation-editor.ts"
 	]
 }
