@@ -20,6 +20,8 @@ import com.pig4cloud.pig.ontology.mapper.OntEntityTypeHierarchyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeLabelMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeMapper;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
+import com.pig4cloud.pig.ontology.mapper.OntEntityInstanceMapper;
+import com.pig4cloud.pig.ontology.mapper.OntInstanceObjectRelationMapper;
 import com.pig4cloud.pig.ontology.mapper.OntObjectPropertyDomainMapper;
 import com.pig4cloud.pig.ontology.mapper.OntObjectPropertyRangeMapper;
 import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
@@ -92,13 +94,19 @@ class OntEntityTypeServiceImplTests {
 	@Mock
 	private OntObjectPropertyRangeMapper objectPropertyRangeMapper;
 
+	@Mock
+	private OntEntityInstanceMapper entityInstanceMapper;
+
+	@Mock
+	private OntInstanceObjectRelationMapper instanceObjectRelationMapper;
+
 	private OntEntityTypeServiceImpl service;
 
 	@BeforeEach
 	void setUp() {
 		service = new OntEntityTypeServiceImpl(labelMapper, hierarchyMapper, disjointMapper, equivalentMapper,
 			namespaceMapper, ontologyProjectMapper, dataPropertyMapper, objectPropertyDomainMapper,
-			objectPropertyRangeMapper);
+			objectPropertyRangeMapper, entityInstanceMapper, instanceObjectRelationMapper);
 		ReflectionTestUtils.setField(service, "baseMapper", entityTypeMapper);
 	}
 

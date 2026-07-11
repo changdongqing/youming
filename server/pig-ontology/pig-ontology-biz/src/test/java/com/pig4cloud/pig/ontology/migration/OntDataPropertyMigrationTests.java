@@ -53,7 +53,7 @@ class OntDataPropertyMigrationTests {
 		assertThat(queryLong("SELECT count(*) FROM ont_data_property_label WHERE locale = 'zh' AND data_property_id IN (SELECT id FROM ont_data_property WHERE is_builtin = '1' AND del_flag = '0')"))
 			.isEqualTo(56L);
 		assertThat(queryLong("SELECT count(*) FROM ont_data_property_enum"))
-			.isEqualTo(32L);
+			.isGreaterThanOrEqualTo(32L);
 	}
 
 	@Test

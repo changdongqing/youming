@@ -88,13 +88,16 @@ class OntDataPropertyServiceImplTests {
 	@Mock
 	private OntAxiomRuleTargetMapper axiomRuleTargetMapper;
 
+	@Mock
+	private com.pig4cloud.pig.ontology.mapper.OntInstanceDataValueMapper instanceDataValueMapper;
+
 	private OntDataPropertyServiceImpl service;
 
 	@BeforeEach
 	void setUp() {
 		service = new OntDataPropertyServiceImpl(labelMapper, enumMapper, entityTypeMapper,
 			entityTypeLabelMapper, hierarchyMapper, namespaceMapper, ontologyProjectMapper, unitCategoryMapper,
-			axiomRuleTargetMapper);
+			axiomRuleTargetMapper, instanceDataValueMapper);
 		ReflectionTestUtils.setField(service, "baseMapper", dataPropertyMapper);
 	}
 
