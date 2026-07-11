@@ -19,6 +19,10 @@
 		"src/views/ontology/object-property/semantic-rules.ts",
 		"src/api/ontology/axiom-rule.ts",
 		"src/views/ontology/axiom-rule/index.vue",
-		"src/views/ontology/axiom-rule/rule-form.ts"
+		"src/views/ontology/axiom-rule/rule-form.ts",
+		"src/api/ontology/instance.ts",
+		"src/views/ontology/instance/index.vue",
+		"src/views/ontology/instance/instance-form.ts",
+		"src/views/ontology/instance/relation-editor.ts"
 	]
 }

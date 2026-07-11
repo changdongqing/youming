@@ -7,7 +7,7 @@ const result = spawnSync('vue-tsc', ['--noEmit', '-p', 'tsconfig.ontology.json']
 const output = `${result.stdout || ''}${result.stderr || ''}`;
 const diagnosticLines = output.split(/\r?\n/).filter(Boolean);
 const ontologyDiagnostics = diagnosticLines.filter((line) =>
-	/^src\/(views\/ontology\/entity-type|views\/ontology\/data-property|views\/ontology\/object-property|views\/ontology\/axiom-rule|api\/ontology\/entity-type|api\/ontology\/data-property|api\/ontology\/object-property|api\/ontology\/axiom-rule|types\/ontology)\//.test(line)
+	/^src\/(views\/ontology\/entity-type|views\/ontology\/data-property|views\/ontology\/object-property|views\/ontology\/axiom-rule|views\/ontology\/instance|api\/ontology\/entity-type|api\/ontology\/data-property|api\/ontology\/object-property|api\/ontology\/axiom-rule|api\/ontology\/instance|types\/ontology)\//.test(line)
 );
 
 if (ontologyDiagnostics.length > 0) {
