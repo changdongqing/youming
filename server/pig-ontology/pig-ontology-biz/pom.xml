@@ -56,7 +56,16 @@
             <groupId>org.apache.jena</groupId>
             <artifactId>jena-core</artifactId>
             <version>5.5.0</version>
-            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.jena</groupId>
+            <artifactId>jena-arq</artifactId>
+            <version>5.5.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.jena</groupId>
+            <artifactId>jena-shacl</artifactId>
+            <version>5.5.0</version>
         </dependency>
     </dependencies>
 

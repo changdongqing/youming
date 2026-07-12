@@ -189,10 +189,8 @@
 					</el-table-column>
 				</el-table>
 
-				<el-divider content-position="left">约束校验（SHACL）</el-divider>
-				<el-alert title="校验引擎能力待上线" type="info" :closable="false" show-icon>
-					<template #default>本期不执行 SHACL / OWL 一致性推理，结果以后续校验引擎模块为准。</template>
-				</el-alert>
+				<el-divider content-position="left">约束校验</el-divider>
+				<validation-panel v-if="detailData?.id" :instance-id="detailData.id" />
 			</template>
 		</el-drawer>
 
@@ -349,6 +347,7 @@ import { useMessage, useMessageBox } from '/@/hooks/message';
 import { filterEntityTypeTree } from '/@/views/ontology/entity-type/tree-utils';
 import InstanceValueField from './instance-value-field.vue';
 import InstanceRelationField from './instance-relation-field.vue';
+import ValidationPanel from '/@/views/ontology/validation/components/ValidationPanel.vue';
 import type {
 	InstanceDetail,
 	InstanceForm,
