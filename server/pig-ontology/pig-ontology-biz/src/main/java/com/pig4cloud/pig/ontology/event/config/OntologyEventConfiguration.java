@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * 事件驱动骨干自动配置。
@@ -18,6 +19,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
  */
 @Configuration
 @EnableConfigurationProperties(OntologyEventProperties.class)
+@EnableScheduling
 @ConditionalOnProperty(prefix = "ontology.event", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class OntologyEventConfiguration {
 
