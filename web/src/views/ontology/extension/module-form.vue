@@ -1,6 +1,6 @@
 <template>
 	<el-drawer v-model="visible" :title="module ? '编辑扩展模块' : '新建扩展模块'" size="480px" :close-on-click-modal="false">
-		<el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+		<el-form ref="formRef" :model="form" :rules="rules" :validate-on-rule-change="false" label-width="100px">
 			<el-form-item label="模块代码" prop="moduleCode">
 				<el-input v-model="form.moduleCode" placeholder="如 medical、petroleum" :disabled="!!module" />
 			</el-form-item>
