@@ -22,6 +22,22 @@
 			<el-table-column prop="iri" label="IRI" show-overflow-tooltip />
 		</el-table>
 
+		<!-- 关联结果中若有违规/警告，展示提示 -->
+		<el-alert
+			v-if="lastResult && !lastResult.validationReport.conforms"
+			type="error"
+			:closable="false"
+			style="margin-top: 12px"
+			:title="`关联完成：成功 ${lastResult.associatedCount} 个，跳过 ${lastResult.skippedCount} 个（含 VIOLATION 违规，被阻断的资源未关联）`"
+		/>
+		<el-alert
+			v-else-if="lastResult && lastResult.validationReport.warningCount > 0"
+			type="warning"
+			:closable="false"
+			style="margin-top: 12px"
+			:title="`关联完成：成功 ${lastResult.associatedCount} 个，跳过 ${lastResult.skippedCount} 个（含 ${lastResult.validationReport.warningCount} 条 WARNING 提示）`"
+		/>
+
 		<template #footer>
 			<el-button @click="visible = false">取消</el-button>
 			<el-button type="primary" :loading="submitting" :disabled="selected.length === 0" @click="handleAssociate">
@@ -32,34 +48,76 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useMessage } from '/@/hooks/message';
 import { associateExtensionResources } from '/@/api/ontology/extension';
 import { fetchEntityTypeList } from '/@/api/ontology/entity-type';
-import type { ExtensionModule } from '/@/types/ontology/extension';
+import { fetchDataPropertyList } from '/@/api/ontology/data-property';
+import { fetchObjectPropertyList } from '/@/api/ontology/object-property';
+import { fetchAxiomRuleList } from '/@/api/ontology/axiom-rule';
+import { fetchUnitList } from '/@/api/ontology/unit';
+import type { ExtensionModule, ResourceType, ExtensionAssociateResult } from '/@/types/ontology/extension';
 
-const props = defineProps<{ module: ExtensionModule | null }>();
+const props = defineProps<{ visible: boolean; module: ExtensionModule | null }>();
 const emit = defineEmits<{ 'update:visible': [value: boolean]; success: [] }>();
-const { success: msgSuccess, error: msgError } = useMessage();
+const { success: msgSuccess, error: msgError, warning: msgWarning } = useMessage();
 
-const visible = computed({ get: () => true, set: (v) => emit('update:visible', v) });
+const visible = computed({
+	get: () => props.visible,
+	set: (v) => emit('update:visible', v),
+});
 const loading = ref(false);
 const submitting = ref(false);
-const resourceType = ref('ENTITY_TYPE');
+const resourceType = ref<ResourceType>('ENTITY_TYPE');
 const availableResources = ref<Array<{ id: string; name: string; iri: string }>>([]);
 const selected = ref<Array<{ id: string; name: string; iri: string }>>([]);
+const lastResult = ref<ExtensionAssociateResult | null>(null);
 
 const loadResources = async () => {
 	if (!props.module) return;
 	loading.value = true;
+	selected.value = [];
 	try {
-		// 首期仅实现实体类型选择器，其他类型后续扩展
-		if (resourceType.value === 'ENTITY_TYPE') {
-			const res = await fetchEntityTypeList({ isBuiltin: '0', namespaceId: props.module.namespaceId });
-			availableResources.value = (res.data || []).map((r: any) => ({ id: r.id, name: r.name, iri: r.iri }));
-		} else {
-			availableResources.value = [];
+		const nsId = props.module.namespaceId;
+		switch (resourceType.value) {
+			case 'ENTITY_TYPE':
+			case 'DATA_PROPERTY':
+			case 'OBJECT_PROPERTY': {
+				// 实体类型/数据属性/对象属性均支持 namespaceId + isBuiltin 过滤
+				const fetcher = resourceType.value === 'ENTITY_TYPE'
+					? fetchEntityTypeList
+					: resourceType.value === 'DATA_PROPERTY'
+						? fetchDataPropertyList
+						: fetchObjectPropertyList;
+				const res = await fetcher({ isBuiltin: '0', namespaceId: nsId } as any);
+				availableResources.value = (res.data || []).map((r: any) => ({ id: String(r.id), name: r.name, iri: r.iri }));
+				break;
+			}
+			case 'AXIOM_RULE': {
+				// 公理规则无 namespaceId 字段，仅按 isBuiltin 过滤
+				const res = await fetchAxiomRuleList({ isBuiltin: '0' } as any);
+				availableResources.value = (res.data || []).map((r: any) => ({
+					id: String(r.id),
+					name: r.name,
+					iri: r.ruleCode, // 公理规则用 ruleCode 作为标识快照
+				}));
+				break;
+			}
+			case 'UNIT': {
+				// 单位支持 namespaceId 过滤（query 为 any 类型）
+				const res = await fetchUnitList({ isBuiltin: '0', namespaceId: nsId });
+				availableResources.value = (res.data || []).map((r: any) => ({
+					id: String(r.id),
+					name: r.unitName,
+					iri: r.unitCode, // 单位用 unitCode 作为标识快照
+				}));
+				break;
+			}
+			default:
+				availableResources.value = [];
 		}
+	} catch {
+		availableResources.value = [];
 	} finally {
 		loading.value = false;
 	}
@@ -73,15 +131,26 @@ const handleAssociate = async () => {
 	if (!props.module) return;
 	submitting.value = true;
 	try {
-		await associateExtensionResources(props.module.id, {
+		const res = await associateExtensionResources(props.module.id, {
 			resources: selected.value.map((r) => ({
-				resourceType: resourceType.value as any,
+				resourceType: resourceType.value,
 				resourceId: r.id,
 			})),
 		});
-		msgSuccess(`已关联 ${selected.value.length} 个资源`);
+		const result = res.data as ExtensionAssociateResult;
+		lastResult.value = result;
+		if (!result.validationReport.conforms) {
+			msgWarning(`成功关联 ${result.associatedCount} 个，跳过 ${result.skippedCount} 个（含违规，已阻断）`);
+		} else if (result.validationReport.warningCount > 0) {
+			msgWarning(`成功关联 ${result.associatedCount} 个，跳过 ${result.skippedCount} 个（含 ${result.validationReport.warningCount} 条警告）`);
+		} else {
+			msgSuccess(`已关联 ${result.associatedCount} 个资源`);
+		}
 		emit('success');
-		visible.value = false;
+		if (result.associatedCount > 0) {
+			// 有成功关联才关闭抽屉；若全部被阻断则保留抽屉供用户查看校验提示
+			visible.value = false;
+		}
 	} catch {
 		msgError('关联失败');
 	} finally {
@@ -89,5 +158,11 @@ const handleAssociate = async () => {
 	}
 };
 
-loadResources();
+// 抽屉打开时加载资源；切换 module 时重新加载
+watch(() => props.module, (val) => {
+	if (val) {
+		lastResult.value = null;
+		loadResources();
+	}
+}, { immediate: true });
 </script>

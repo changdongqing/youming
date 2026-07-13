@@ -34,8 +34,11 @@
 import { computed } from 'vue';
 import type { ExtensionValidationReport } from '/@/types/ontology/extension';
 
-const props = defineProps<{ report: ExtensionValidationReport | null }>();
+const props = defineProps<{ visible: boolean; report: ExtensionValidationReport | null }>();
 const emit = defineEmits<{ 'update:visible': [value: boolean] }>();
 
-const visible = computed({ get: () => true, set: (v) => emit('update:visible', v) });
+const visible = computed({
+	get: () => props.visible,
+	set: (v) => emit('update:visible', v),
+});
 </script>

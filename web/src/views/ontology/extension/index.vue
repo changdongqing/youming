@@ -28,11 +28,12 @@
 							<el-table-column prop="version" label="版本" width="80" />
 							<el-table-column prop="sortOrder" label="排序" width="60" />
 							<el-table-column prop="createTime" label="创建时间" width="150" />
-							<el-table-column label="操作" width="200" fixed="right">
+							<el-table-column label="操作" width="260" fixed="right">
 								<template #default="{ row }">
 									<el-button link type="primary" @click="handleDetail(row)">详情</el-button>
 									<el-button link type="primary" @click="openForm(row)">编辑</el-button>
 									<el-button link type="warning" @click="handleValidate(row)">校验</el-button>
+									<el-button link type="info" @click="handleImpact(row)">影响</el-button>
 									<el-button link type="success" @click="handleExport(row)">导出</el-button>
 									<el-button v-auth="'ontology_extension_del'" link type="danger" @click="handleDelete(row)">删除</el-button>
 								</template>
@@ -76,6 +77,24 @@
 			<ResourceAssociate v-model:visible="associateVisible" :module="selectedModule" @success="handleAssociateSuccess" />
 			<ValidationReport v-model:visible="validationVisible" :report="validationReport" />
 			<ImpactDialog v-model:visible="impactVisible" :summary="impactSummary" />
+
+			<!-- 导出格式选择对话框 -->
+			<el-dialog v-model="exportDialogVisible" title="选择导出格式" width="380px">
+				<el-form label-width="80px">
+					<el-form-item label="RDF格式">
+						<el-select v-model="exportFormat" style="width: 100%">
+							<el-option label="Turtle (.ttl)" value="TURTLE" />
+							<el-option label="JSON-LD (.jsonld)" value="JSON-LD" />
+							<el-option label="RDF/XML (.rdf)" value="RDF-XML" />
+							<el-option label="N-Triples (.nt)" value="N-TRIPLES" />
+						</el-select>
+					</el-form-item>
+				</el-form>
+				<template #footer>
+					<el-button @click="exportDialogVisible = false">取消</el-button>
+					<el-button type="primary" :loading="exporting" @click="confirmExport">确认导出</el-button>
+				</template>
+			</el-dialog>
 		</div>
 	</div>
 </template>
@@ -91,7 +110,7 @@ import {
 	exportExtensionModule,
 	removeExtensionResource,
 } from '/@/api/ontology/extension';
-import type { ExtensionModule, ExtensionValidationReport, ExtensionImpactSummary } from '/@/types/ontology/extension';
+import type { ExtensionModule, ExtensionValidationReport, ExtensionImpactSummary, RdfFormat } from '/@/types/ontology/extension';
 import ModuleForm from './module-form.vue';
 import ResourceAssociate from './resource-associate.vue';
 import ValidationReport from './validation-report.vue';
@@ -120,6 +139,19 @@ const validationReport = ref<ExtensionValidationReport | null>(null);
 const impactVisible = ref(false);
 const impactSummary = ref<ExtensionImpactSummary | null>(null);
 const resourceRefreshKey = ref(0);
+// 导出格式选择
+const exportDialogVisible = ref(false);
+const exportFormat = ref<RdfFormat>('TURTLE');
+const exporting = ref(false);
+const exportTarget = ref<ExtensionModule | null>(null);
+
+// 导出文件扩展名映射
+const exportExtMap: Record<string, string> = {
+	TURTLE: 'ttl',
+	'JSON-LD': 'jsonld',
+	'RDF-XML': 'rdf',
+	'N-TRIPLES': 'nt',
+};
 
 const getList = async () => {
 	loading.value = true;
@@ -166,18 +198,43 @@ const handleValidate = async (row: ExtensionModule) => {
 	}
 };
 
-const handleExport = async (row: ExtensionModule) => {
+const handleImpact = async (row: ExtensionModule) => {
 	try {
-		const blob = await exportExtensionModule(row.id, 'TURTLE');
+		const res = await fetchExtensionImpact(row.id);
+		impactSummary.value = res.data;
+		impactVisible.value = true;
+	} catch {
+		msgError('影响分析失败');
+	}
+};
+
+const handleExport = (row: ExtensionModule) => {
+	// 打开格式选择对话框，暂存目标模块
+	exportTarget.value = row;
+	exportFormat.value = 'TURTLE';
+	exportDialogVisible.value = true;
+};
+
+const confirmExport = async () => {
+	if (!exportTarget.value) return;
+	const row = exportTarget.value;
+	exporting.value = true;
+	try {
+		const response: any = await exportExtensionModule(row.id, exportFormat.value);
+		// request 封装的 blob 响应，实际数据在 response 或 response.data
+		const blob = new Blob([response.data || response], { type: 'application/octet-stream' });
 		const url = window.URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
-		a.download = `${row.moduleCode}_extension.ttl`;
+		a.download = `${row.moduleCode}_extension.${exportExtMap[exportFormat.value] || 'txt'}`;
 		a.click();
 		window.URL.revokeObjectURL(url);
 		msgSuccess('导出成功');
+		exportDialogVisible.value = false;
 	} catch {
 		msgError('导出失败');
+	} finally {
+		exporting.value = false;
 	}
 };
 
@@ -198,16 +255,18 @@ const handleDelete = (row: ExtensionModule) => {
 	}).catch(() => {});
 };
 
-const handleRemoveResource = async (resourceId: string, resourceType: string) => {
+const handleRemoveResource = (resourceId: string, resourceType: string) => {
 	if (!selectedModule.value) return;
-	try {
-		await removeExtensionResource(selectedModule.value.id, resourceId, resourceType);
-		msgSuccess('已解除关联');
-		resourceRefreshKey.value++;
-		getList();
-	} catch {
-		msgError('解除关联失败');
-	}
+	msgConfirm('确认解除该资源的关联？资源本身不会被删除。').then(async () => {
+		try {
+			await removeExtensionResource(selectedModule.value!.id, resourceId, resourceType);
+			msgSuccess('已解除关联');
+			resourceRefreshKey.value++;
+			getList();
+		} catch {
+			msgError('解除关联失败');
+		}
+	}).catch(() => {});
 };
 
 onMounted(() => {

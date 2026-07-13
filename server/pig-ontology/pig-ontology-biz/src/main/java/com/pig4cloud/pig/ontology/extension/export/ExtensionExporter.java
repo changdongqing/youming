@@ -177,21 +177,35 @@ public class ExtensionExporter {
 			}
 		}
 
-		// 继承关系（仅包含子类在扩展集合中的）
+		// 继承关系（仅包含子类在扩展集合中的）；批量查询父类避免 N+1
 		List<OntEntityTypeHierarchy> hierarchies = hierarchyMapper.selectList(
 			Wrappers.<OntEntityTypeHierarchy>lambdaQuery()
 				.in(OntEntityTypeHierarchy::getChildId, typeIds));
+		Set<Long> parentIds = hierarchies.stream()
+			.map(OntEntityTypeHierarchy::getParentId)
+			.filter(pid -> !idToIri.containsKey(pid))
+			.collect(Collectors.toSet());
+		Map<Long, String> parentIdToIri = parentIds.isEmpty() ? Collections.emptyMap()
+				: entityTypeMapper.selectBatchIds(parentIds).stream()
+					.collect(Collectors.toMap(OntEntityType::getId, OntEntityType::getIri));
+		// 合并扩展集合自身的 IRI 映射，统一查找
+		Map<Long, String> allTypeIdToIri = new java.util.HashMap<>(idToIri);
+		allTypeIdToIri.putAll(parentIdToIri);
 		for (OntEntityTypeHierarchy h : hierarchies) {
 			String childIri = idToIri.get(h.getChildId());
-			OntEntityType parent = entityTypeMapper.selectById(h.getParentId());
-			if (childIri != null && parent != null) {
+			String parentIri = allTypeIdToIri.get(h.getParentId());
+			if (childIri != null && parentIri != null) {
 				model.add(model.createResource(childIri), RDFS.subClassOf,
-					model.createResource(parent.getIri()));
+					model.createResource(parentIri));
 			}
 		}
 
-		// 不相交声明（两端均在扩展集合中的）
-		List<OntEntityTypeDisjoint> disjoints = disjointMapper.selectList(null);
+		// 不相交声明（仅查询至少一端在扩展集合中的，避免全表扫描）
+		List<OntEntityTypeDisjoint> disjoints = disjointMapper.selectList(
+			Wrappers.<OntEntityTypeDisjoint>lambdaQuery()
+				.in(OntEntityTypeDisjoint::getTypeA, typeIds)
+				.or()
+				.in(OntEntityTypeDisjoint::getTypeB, typeIds));
 		for (OntEntityTypeDisjoint d : disjoints) {
 			if (typeIdSet.contains(d.getTypeA()) && typeIdSet.contains(d.getTypeB())) {
 				String iriA = idToIri.get(d.getTypeA());
@@ -203,16 +217,25 @@ public class ExtensionExporter {
 			}
 		}
 
-		// 等价类声明
+		// 等价类声明；批量查询等价目标类型避免 N+1
 		List<OntEntityTypeEquivalent> equivalents = equivalentMapper.selectList(
 			Wrappers.<OntEntityTypeEquivalent>lambdaQuery()
 				.in(OntEntityTypeEquivalent::getEntityTypeId, typeIds));
+		Set<Long> equivalentIds = equivalents.stream()
+			.map(OntEntityTypeEquivalent::getEquivalentId)
+			.filter(eid -> !idToIri.containsKey(eid))
+			.collect(Collectors.toSet());
+		Map<Long, String> equivalentIdToIri = equivalentIds.isEmpty() ? Collections.emptyMap()
+				: entityTypeMapper.selectBatchIds(equivalentIds).stream()
+					.collect(Collectors.toMap(OntEntityType::getId, OntEntityType::getIri));
+		Map<Long, String> allEqTypeIdToIri = new java.util.HashMap<>(idToIri);
+		allEqTypeIdToIri.putAll(equivalentIdToIri);
 		for (OntEntityTypeEquivalent eq : equivalents) {
 			String iriA = idToIri.get(eq.getEntityTypeId());
-			OntEntityType eqType = entityTypeMapper.selectById(eq.getEquivalentId());
-			if (iriA != null && eqType != null) {
+			String eqIri = allEqTypeIdToIri.get(eq.getEquivalentId());
+			if (iriA != null && eqIri != null) {
 				model.add(model.createResource(iriA), OWL.equivalentClass,
-					model.createResource(eqType.getIri()));
+					model.createResource(eqIri));
 			}
 		}
 	}
@@ -331,13 +354,25 @@ public class ExtensionExporter {
 			List<OntInstanceDataValue> values = dataValueMapper.selectList(
 				Wrappers.<OntInstanceDataValue>lambdaQuery()
 					.in(OntInstanceDataValue::getInstanceId, instanceIds));
+			// 批量查询数据属性 IRI 映射，避免逐条 N+1 查询
+			Set<Long> dataPropertyIds = values.stream()
+				.map(OntInstanceDataValue::getDataPropertyId)
+				.filter(java.util.Objects::nonNull)
+				.collect(Collectors.toSet());
+			Map<Long, String> dataPropIdToIri = dataPropertyIds.isEmpty()
+					? Collections.emptyMap()
+					: dataPropertyMapper.selectBatchIds(dataPropertyIds).stream()
+						.collect(Collectors.toMap(OntDataProperty::getId,
+							dp -> predicateResolver.resolveDataPropertyPredicate(dp,
+								PredicateStrategy.PREFERRED_ALIAS)));
 			for (OntInstanceDataValue dv : values) {
 				String subjectIri = instanceIdToIri.get(dv.getInstanceId());
-				if (subjectIri == null || dv.getLiteralValue() == null) {
+				String predicateIri = dataPropIdToIri.get(dv.getDataPropertyId());
+				if (subjectIri == null || predicateIri == null || dv.getLiteralValue() == null) {
 					continue;
 				}
 				model.add(model.createResource(subjectIri),
-					model.createProperty(subjectIri),
+					model.createProperty(predicateIri),
 					model.createLiteral(dv.getLiteralValue()));
 			}
 		}

@@ -217,16 +217,22 @@ public class OntExtensionController {
 	@HasPermission("ontology_extension_export")
 	public ResponseEntity<byte[]> exportModule(@PathVariable Long id,
 			@RequestParam(defaultValue = "TURTLE") String format) {
-		String content = moduleService.exportModule(id, format);
-		if (content == null) {
-			return ResponseEntity.notFound().build();
+		try {
+			String content = moduleService.exportModule(id, format);
+			if (content == null) {
+				return ResponseEntity.notFound().build();
+			}
+			String filename = moduleService.getExportFilename(id, format);
+			return ResponseEntity.ok()
+				.header(HttpHeaders.CONTENT_DISPOSITION,
+					"attachment; filename=\"" + filename + "\"")
+				.contentType(MediaType.parseMediaType(rdfContentType(format)))
+				.body(content.getBytes(StandardCharsets.UTF_8));
 		}
-		String filename = moduleService.getExportFilename(id, format);
-		return ResponseEntity.ok()
-			.header(HttpHeaders.CONTENT_DISPOSITION,
-				"attachment; filename=\"" + filename + "\"")
-			.contentType(MediaType.parseMediaType(rdfContentType(format)))
-			.body(content.getBytes(StandardCharsets.UTF_8));
+		catch (IllegalArgumentException e) {
+			// 不支持的 RDF 格式，返回 400 而非 500
+			return ResponseEntity.badRequest().build();
+		}
 	}
 
 	/**

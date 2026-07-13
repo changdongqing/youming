@@ -30,8 +30,11 @@
 import { computed } from 'vue';
 import type { ExtensionImpactSummary } from '/@/types/ontology/extension';
 
-const props = defineProps<{ summary: ExtensionImpactSummary | null }>();
+const props = defineProps<{ visible: boolean; summary: ExtensionImpactSummary | null }>();
 const emit = defineEmits<{ 'update:visible': [value: boolean] }>();
 
-const visible = computed({ get: () => true, set: (v) => emit('update:visible', v) });
+const visible = computed({
+	get: () => props.visible,
+	set: (v) => emit('update:visible', v),
+});
 </script>

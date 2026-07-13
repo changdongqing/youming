@@ -17,6 +17,7 @@ import com.pig4cloud.pig.ontology.extension.mapper.OntExtensionModuleMapper;
 import com.pig4cloud.pig.ontology.extension.mapper.OntExtensionResourceMapper;
 import com.pig4cloud.pig.ontology.extension.service.OntExtensionModuleService;
 import com.pig4cloud.pig.ontology.extension.validator.ExtensionValidationReport;
+import com.pig4cloud.pig.ontology.extension.validator.ExtensionValidationResult;
 import com.pig4cloud.pig.ontology.extension.validator.ExtensionValidator;
 import com.pig4cloud.pig.ontology.extension.vo.ExtensionModuleDetailVO;
 import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
@@ -90,7 +91,12 @@ public class OntExtensionModuleServiceImpl extends ServiceImpl<OntExtensionModul
 
 		ExtensionValidationReport report = validator.validateModule(module);
 		if (!report.getConforms()) {
-			return R.failed("扩展合法性校验未通过");
+			String firstViolation = report.getResults().stream()
+				.filter(r -> "VIOLATION".equals(r.getSeverity()) && !r.getPassed())
+				.map(ExtensionValidationResult::getMessage)
+				.findFirst()
+				.orElse("扩展合法性校验未通过");
+			return R.failed(firstViolation);
 		}
 
 		this.save(module);

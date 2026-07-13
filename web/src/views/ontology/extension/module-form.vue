@@ -41,11 +41,14 @@ import { fetchNamespaceList } from '/@/api/ontology/namespace';
 import { addExtensionModuleObj, putExtensionModuleObj } from '/@/api/ontology/extension';
 import type { ExtensionModule } from '/@/types/ontology/extension';
 
-const props = defineProps<{ module: ExtensionModule | null }>();
+const props = defineProps<{ visible: boolean; module: ExtensionModule | null }>();
 const emit = defineEmits<{ 'update:visible': [value: boolean]; success: [] }>();
 const { success: msgSuccess, error: msgError } = useMessage();
 
-const visible = computed({ get: () => true, set: (v) => emit('update:visible', v) });
+const visible = computed({
+	get: () => props.visible,
+	set: (v) => emit('update:visible', v),
+});
 const formRef = ref<FormInstance>();
 const submitting = ref(false);
 const namespaceOptions = ref<Array<{ id: string; prefix: string; uri: string }>>([]);
@@ -69,6 +72,15 @@ const rules = {
 	namespaceId: [{ required: true, message: '请选择命名空间', trigger: 'change' }],
 };
 
+const loadNamespaces = async () => {
+	try {
+		const res = await fetchNamespaceList({ isBuiltin: '0' });
+		namespaceOptions.value = res.data || [];
+	} catch {
+		// ignore
+	}
+};
+
 watch(() => props.module, (val) => {
 	if (val) {
 		form.moduleCode = val.moduleCode;
@@ -81,16 +93,9 @@ watch(() => props.module, (val) => {
 	} else {
 		Object.assign(form, { moduleCode: '', moduleName: '', namespaceId: '', version: '', description: '', sortOrder: 0, remarks: '' });
 	}
-});
-
-const loadNamespaces = async () => {
-	try {
-		const res = await fetchNamespaceList({ isBuiltin: '0' });
-		namespaceOptions.value = res.data || [];
-	} catch {
-		// ignore
-	}
-};
+	// 每次抽屉打开（module 变化）时重新加载命名空间列表，确保新增的扩展命名空间可见
+	loadNamespaces();
+}, { immediate: true });
 
 const handleSubmit = async () => {
 	if (!formRef.value) return;
@@ -128,6 +133,4 @@ const handleSubmit = async () => {
 		}
 	});
 };
-
-loadNamespaces();
 </script>

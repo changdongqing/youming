@@ -121,6 +121,12 @@ public class OntExtensionResourceServiceImpl extends ServiceImpl<OntExtensionRes
 			ExtensionValidationReport report = validator.validateResource(module, resource);
 			allResults.addAll(report.getResults());
 
+			// VIOLATION 级违规阻断保存（R1/R2/R5），WARNING 级仅提示不阻断（R3/R4）
+			if (!report.getConforms()) {
+				skippedCount++;
+				continue;
+			}
+
 			// 保存关联
 			resource.setDelFlag("0");
 			this.save(resource);
