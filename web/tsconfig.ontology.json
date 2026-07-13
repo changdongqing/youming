@@ -26,6 +26,17 @@
 		"src/views/ontology/instance/instance-form.ts",
 		"src/views/ontology/instance/instance-value-field.vue",
 		"src/views/ontology/instance/instance-relation-field.vue",
-		"src/views/ontology/instance/relation-editor.ts"
+		"src/views/ontology/instance/relation-editor.ts",
+		"src/api/ontology/visualization.ts",
+		"src/types/ontology/visualization.ts",
+		"src/views/ontology/visualization/graph-utils.ts",
+		"src/views/ontology/visualization/index.vue",
+		"src/views/ontology/visualization/components/OntologyGraph.vue",
+		"src/views/ontology/visualization/components/SchemaGraph.vue",
+		"src/views/ontology/visualization/components/InstanceGraph.vue",
+		"src/views/ontology/visualization/components/GraphToolbar.vue",
+		"src/views/ontology/visualization/components/DataPropertyPanel.vue",
+		"src/views/ontology/visualization/components/AxiomAnnotationPanel.vue",
+		"src/views/ontology/visualization/components/StatsOverview.vue"
 	]
 }
