@@ -121,7 +121,9 @@
 						</el-table-column>
 					</el-table>
 					<pagination
-						v-bind="pagination"
+						:total="pagination.total"
+						v-model:current="pagination.current"
+						v-model:size="pagination.size"
 						@current-change="handleCurrentChange"
 						@size-change="handleSizeChange"
 					/>

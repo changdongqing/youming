@@ -65,7 +65,7 @@
 					</template>
 				</el-table-column>
 			</el-table>
-			<pagination v-bind="pagination" @current-change="handleCurrentChange" @size-change="handleSizeChange" />
+			<pagination :total="pagination.total" v-model:current="pagination.current" v-model:size="pagination.size" @current-change="handleCurrentChange" @size-change="handleSizeChange" />
 		</div>
 
 		<el-dialog v-model="dialog.visible" :title="dialog.title" width="560px" destroy-on-close>
