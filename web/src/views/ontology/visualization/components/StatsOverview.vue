@@ -82,6 +82,9 @@ function validationIcon(status: string): 'success' | 'warning' | 'info' {
 
 <style scoped>
 .stats-overview {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
 	padding: 8px;
 }
 </style>

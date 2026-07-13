@@ -106,4 +106,21 @@ onMounted(loadStats);
 .ontology-visualization-page {
 	height: 100%;
 }
+/* el-tabs 高度自适应：撑满容器，内容区按页签填充 */
+.ontology-visualization-page :deep(.el-tabs) {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+.ontology-visualization-page :deep(.el-tabs__header) {
+	margin-bottom: 0;
+	flex-shrink: 0;
+}
+.ontology-visualization-page :deep(.el-tabs__content),
+.ontology-visualization-page :deep(.el-tab-pane) {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+}
 </style>

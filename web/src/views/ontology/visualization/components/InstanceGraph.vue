@@ -181,7 +181,8 @@ function handleLayoutChange(newLayout: GraphLayout) {
 
 <style scoped>
 .instance-graph-page {
-	height: 100%;
+	flex: 1;
+	min-height: 0;
 	display: flex;
 	flex-direction: column;
 }
