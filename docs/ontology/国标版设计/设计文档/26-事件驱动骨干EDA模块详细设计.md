@@ -1,11 +1,11 @@
 # 事件驱动骨干 EDA 模块详细设计
 
 > 设计编号：26
-> 设计状态：评审修订版（仅设计，尚未开发）
+> 设计状态：评审通过待开发（v2）
 > 设计依据：`标准本体建模平台PRD.md` §3.2、§8、§9；`现有设计与IoT场景落地差距分析.md` §3.35、§5.2、§7；`本体与iot场景实现沟通.md` 中告警/触发/规则流协作边界
 > 前置模块：04～14；36-安全与合规作为管理操作审批和敏感事件治理能力，EDA 本身不反向成为 36 的启动前提
-> 基础设施：当前项目已引入 Spring Data Redis 并配置 Redis；开发环境使用 `spring.data.redis.database=5`，模块不得在代码中硬编码数据库号
-> 评审日期：2026-07-13
+> 基础设施：当前项目已引入 Spring Data Redis（`spring-boot-starter-data-redis` 经 `pig-common-data` 传递引入）；Spring Boot 4.1.0 + Spring Data Redis 4.0.x，`StreamMessageListenerContainer` 仍可用；开发环境使用 `spring.data.redis.database=5`，模块不得在代码中硬编码数据库号
+> 评审日期：2026-07-14（第二次评审，基于仓库实际结构复核）
 
 ---
 
@@ -39,6 +39,22 @@
 | 自研 `@OntEventListener` + BeanPostProcessor | 首期使用 Spring Data Redis `StreamMessageListenerContainer` + 显式 Handler Registry，减少自定义框架复杂度 |
 | Outbox/死信表使用 `BIGSERIAL`、时间字段不符合仓库规范 | 使用 `bigint + IdType.ASSIGN_ID` 和统一审计字段；菜单列对齐现有 `sys_menu` |
 | 迁移给不存在的角色 3/4 授权 | 只授予当前真实存在的管理员角色 1 |
+
+### 1.3 第二次评审补充修正（基于仓库实际结构复核）
+
+| 发现的问题 | 修正 |
+|---|---|
+| Flyway 版本号冲突：设计文档写 `V18__ontology_event_backbone.sql`，但 V18 已被版本演化模块（`V18__ontology_versioning.sql`）占用 | 版本号改为 **`V19__ontology_event_backbone.sql`** |
+| 菜单 ID 段冲突：设计使用 901500，但仓库已使用到 901300（版本管理），901400 段空闲且更符合递增序列 | 菜单 ID 改为 **901400**（父菜单）/ **901401-901402**（按钮权限），sort_order 改为 **14** |
+| SQL 表缺少 `COMMENT ON TABLE/COLUMN` | 仓库所有 V4+ 迁移脚本均对每个表和列写 COMMENT，补全 |
+| 迁移脚本缺少尾部 `DO $$ ... END $$` 完整性断言 | 仓库 V17/V18 均以迁移完整性断言块收尾，补全 |
+| `ont_event_replay_log` 缺少 `update_by`/`update_time`/`del_flag` 审计字段 | 补全标准审计字段，与仓库 entity 规范一致 |
+| 未说明 Entity 的 MyBatis-Plus 注解约定（`@TableName`、`@TableId(IdType.ASSIGN_ID)`、`@TableField(fill=...)`、`@TableLogic`） | 在 §7 补充 Entity 规范说明 |
+| 未说明 Mapper 无 XML、使用 `@Select`/`@Update` 注解的仓库约定 | 在 §6.2 补充 |
+| 未说明 `StringRedisTemplate` 由 Spring Boot 自动配置，可直接 `@Autowired`/构造注入 | 在 §6.2 补充 |
+| 配置缺少与 `pig-common-data` `RedisTemplateConfiguration` 已有 `RedisTemplate<String,Object>`（JDK 序列化）的互斥说明 | 在 §8 补充：EDA Stream 操作必须使用 `StringRedisTemplate`，不得使用带 JDK 序列化器的 `RedisTemplate<String,Object>` |
+| 前端 API URL 路径与仓库约定不一致（仓库使用 `/admin/ontology/<resource>` 前缀） | §9 和 §10 统一路径为 `/admin/ontology/events/...` |
+| 缺少 Spring Boot 4.1.0 兼容性确认 | 确认 Spring Data Redis 4.0.x 仍提供 `StreamMessageListenerContainer`，API 兼容 |
 
 ---
 
@@ -254,6 +270,31 @@ CREATE INDEX idx_ont_outbox_lease
 CREATE INDEX idx_ont_outbox_aggregate
   ON ont_event_outbox (aggregate_type, aggregate_id, create_time)
   WHERE del_flag = '0';
+
+COMMENT ON TABLE ont_event_outbox IS '事件 Outbox 表，DB 事务内写入的待投递领域事件';
+COMMENT ON COLUMN ont_event_outbox.id IS '主键ID（雪花算法）';
+COMMENT ON COLUMN ont_event_outbox.event_id IS '领域事件唯一ID（UUID），重复投递保持不变';
+COMMENT ON COLUMN ont_event_outbox.event_type IS '事件类型，如 ONTOLOGY_INSTANCE_CHANGED';
+COMMENT ON COLUMN ont_event_outbox.event_version IS '事件契约版本号，默认1';
+COMMENT ON COLUMN ont_event_outbox.ontology_id IS '所属本体工程ID';
+COMMENT ON COLUMN ont_event_outbox.aggregate_type IS '聚合类型，如 ENTITY_INSTANCE';
+COMMENT ON COLUMN ont_event_outbox.aggregate_id IS '聚合ID，字符串兼容雪花ID/IRI';
+COMMENT ON COLUMN ont_event_outbox.operation IS '操作类型，如 CREATED/UPDATED/DELETED';
+COMMENT ON COLUMN ont_event_outbox.occurred_at IS '事件发生时间（UTC Instant）';
+COMMENT ON COLUMN ont_event_outbox.payload IS '事件负载JSONB，仅放消费所需最小信息';
+COMMENT ON COLUMN ont_event_outbox.metadata IS '事件元数据JSONB，如 targetConsumerGroup';
+COMMENT ON COLUMN ont_event_outbox.trace_id IS '链路追踪ID';
+COMMENT ON COLUMN ont_event_outbox.actor_id IS '触发操作的用户ID';
+COMMENT ON COLUMN ont_event_outbox.status IS '投递状态：PENDING/PROCESSING/PUBLISHED/FAILED';
+COMMENT ON COLUMN ont_event_outbox.available_at IS '可投递时间，用于延迟投递';
+COMMENT ON COLUMN ont_event_outbox.lease_until IS '领取租约到期时间';
+COMMENT ON COLUMN ont_event_outbox.locked_by IS '当前领取实例标识';
+COMMENT ON COLUMN ont_event_outbox.delivery_attempt IS '投递尝试次数';
+COMMENT ON COLUMN ont_event_outbox.stream_record_id IS 'Redis Stream 返回的记录ID';
+COMMENT ON COLUMN ont_event_outbox.published_at IS '确认 XADD 成功的时间';
+COMMENT ON COLUMN ont_event_outbox.last_error_code IS '最近一次投递错误码';
+COMMENT ON COLUMN ont_event_outbox.last_error_message IS '最近一次投递错误信息';
+COMMENT ON COLUMN ont_event_outbox.del_flag IS '删除标志，0未删除，1已删除';
 ```
 
 Outbox 行与业务写入在同一事务插入。`published_at` 只表示已确认 XADD 返回，不表示所有消费者已处理。
@@ -292,6 +333,22 @@ CREATE UNIQUE INDEX uk_ont_consume_idempotency
 CREATE INDEX idx_ont_consume_lease
   ON ont_event_consume_record (status, lease_until)
   WHERE del_flag = '0';
+
+COMMENT ON TABLE ont_event_consume_record IS '事件消费记录（Inbox），保证重复投递时的业务幂等';
+COMMENT ON COLUMN ont_event_consume_record.id IS '主键ID（雪花算法）';
+COMMENT ON COLUMN ont_event_consume_record.consumer_group IS '消费者组名称';
+COMMENT ON COLUMN ont_event_consume_record.event_id IS '领域事件唯一ID';
+COMMENT ON COLUMN ont_event_consume_record.replay_no IS '回放序号，0为原始投递，人工回放递增';
+COMMENT ON COLUMN ont_event_consume_record.event_type IS '事件类型';
+COMMENT ON COLUMN ont_event_consume_record.status IS '消费状态：PROCESSING/SUCCEEDED/FAILED';
+COMMENT ON COLUMN ont_event_consume_record.lease_until IS '消费处理租约到期时间';
+COMMENT ON COLUMN ont_event_consume_record.consumer_name IS '当前处理消费者实例名称';
+COMMENT ON COLUMN ont_event_consume_record.process_attempt IS '处理尝试次数';
+COMMENT ON COLUMN ont_event_consume_record.started_at IS '开始处理时间';
+COMMENT ON COLUMN ont_event_consume_record.completed_at IS '完成处理时间';
+COMMENT ON COLUMN ont_event_consume_record.last_error_code IS '最近一次处理错误码';
+COMMENT ON COLUMN ont_event_consume_record.last_error_message IS '最近一次处理错误信息';
+COMMENT ON COLUMN ont_event_consume_record.del_flag IS '删除标志，0未删除，1已删除';
 ```
 
 ### 5.3 死信 `ont_event_dead_letter`
@@ -327,6 +384,25 @@ CREATE TABLE ont_event_dead_letter (
 CREATE UNIQUE INDEX uk_ont_dlq_event_group
   ON ont_event_dead_letter (consumer_group, event_id, replay_no)
   WHERE del_flag = '0';
+
+COMMENT ON TABLE ont_event_dead_letter IS '事件死信表，达到最大重试次数或不可重试错误的死信记录';
+COMMENT ON COLUMN ont_event_dead_letter.id IS '主键ID（雪花算法）';
+COMMENT ON COLUMN ont_event_dead_letter.consumer_group IS '消费者组名称';
+COMMENT ON COLUMN ont_event_dead_letter.event_id IS '领域事件唯一ID';
+COMMENT ON COLUMN ont_event_dead_letter.replay_no IS '回放序号';
+COMMENT ON COLUMN ont_event_dead_letter.event_type IS '事件类型';
+COMMENT ON COLUMN ont_event_dead_letter.stream_record_id IS 'Redis Stream 记录ID';
+COMMENT ON COLUMN ont_event_dead_letter.payload IS '事件负载JSONB';
+COMMENT ON COLUMN ont_event_dead_letter.failure_category IS '失败分类：RETRYABLE/NON_RETRYABLE';
+COMMENT ON COLUMN ont_event_dead_letter.error_code IS '错误码';
+COMMENT ON COLUMN ont_event_dead_letter.error_message IS '错误信息';
+COMMENT ON COLUMN ont_event_dead_letter.delivery_count IS '投递尝试总次数';
+COMMENT ON COLUMN ont_event_dead_letter.status IS '死信状态：OPEN/REPLAYED/RESOLVED/IGNORED';
+COMMENT ON COLUMN ont_event_dead_letter.replayed_as_no IS '回放后分配的新 replayNo';
+COMMENT ON COLUMN ont_event_dead_letter.first_failed_at IS '首次失败时间';
+COMMENT ON COLUMN ont_event_dead_letter.last_failed_at IS '最近失败时间';
+COMMENT ON COLUMN ont_event_dead_letter.resolved_at IS '人工处理完成时间';
+COMMENT ON COLUMN ont_event_dead_letter.del_flag IS '删除标志，0未删除，1已删除';
 ```
 
 ### 5.4 回放日志 `ont_event_replay_log`
@@ -344,10 +420,26 @@ CREATE TABLE ont_event_replay_log (
   replayed_at timestamp NOT NULL DEFAULT now(),
   create_by varchar(64) DEFAULT ' ',
   create_time timestamp NOT NULL DEFAULT now(),
+  update_by varchar(64) DEFAULT ' ',
+  update_time timestamp DEFAULT NULL,
+  del_flag char(1) NOT NULL DEFAULT '0',
   PRIMARY KEY (id),
   CONSTRAINT uk_ont_replay_target
-    UNIQUE (event_id, target_replay_no, target_consumer_group)
+    UNIQUE (event_id, target_replay_no, target_consumer_group),
+  CONSTRAINT ck_ont_replay_del CHECK (del_flag IN ('0', '1'))
 );
+
+COMMENT ON TABLE ont_event_replay_log IS '事件回放日志，记录每次受控回放的来源和目标';
+COMMENT ON COLUMN ont_event_replay_log.id IS '主键ID（雪花算法）';
+COMMENT ON COLUMN ont_event_replay_log.event_id IS '被回放的领域事件ID';
+COMMENT ON COLUMN ont_event_replay_log.source_replay_no IS '源回放序号';
+COMMENT ON COLUMN ont_event_replay_log.target_replay_no IS '目标回放序号（新分配）';
+COMMENT ON COLUMN ont_event_replay_log.target_consumer_group IS '目标消费者组';
+COMMENT ON COLUMN ont_event_replay_log.reason IS '回放原因';
+COMMENT ON COLUMN ont_event_replay_log.approval_request_no IS '模块36审批号（批量或高风险回放）';
+COMMENT ON COLUMN ont_event_replay_log.replayed_by IS '执行回放的用户ID';
+COMMENT ON COLUMN ont_event_replay_log.replayed_at IS '回放执行时间';
+COMMENT ON COLUMN ont_event_replay_log.del_flag IS '删除标志，0未删除，1已删除';
 ```
 
 ---
@@ -395,11 +487,15 @@ LIMIT :batchSize;
 
 之后逐条 XADD：
 
-- Stream 使用 `StringRedisTemplate`，避免当前 `RedisTemplate<String,Object>` 的 Java 序列化与跨语言不兼容。
+- Stream 使用 `StringRedisTemplate`（Spring Boot 自动配置的原生 Bean，可直接构造注入），避免当前 `RedisTemplate<String,Object>` 的 JDK 序列化与跨语言不兼容。
+  - `pig-common-data` 的 `RedisTemplateConfiguration` 已注册 `@Primary RedisTemplate<String,Object>`（JDK 序列化器），本模块**不得**用它操作 Stream，否则 XADD 的 value 会被 JDK 序列化。
+  - `StringRedisTemplate` 是 Spring Boot 自动配置的独立 Bean，key/value 均为 String，直接 `@Autowired` 或 `@RequiredArgsConstructor` 注入即可。
 - Redis 字段存 `eventId/replayNo/eventType/eventVersion/envelopeJson`。
 - XADD 成功后更新 `PUBLISHED + stream_record_id`。
 - XADD 成功、数据库更新前宕机会导致重复 XADD；消费者 Inbox 必须去重。
-- 投递超过最大次数后 Outbox 标记 FAILED，并产生运维告警；不把“投递失败”混入消费死信。
+- 投递超过最大次数后 Outbox 标记 FAILED，并产生运维告警；不把”投递失败”混入消费死信。
+
+> **Mapper 约定**：仓库无 mapper XML 文件，所有自定义 SQL 使用 `@Select`/`@Update`/`@Insert`/`@Delete` 注解直接写在 Mapper 接口方法上，参数使用 `@Param` 绑定。Outbox 领取 SQL 属于自定义查询，使用 `@Select` 注解。
 
 ### 6.3 消费与幂等
 
@@ -481,6 +577,26 @@ public interface OntologyEventHandler {
 
 `OntologyEventDispatcher` 按 consumer group 创建 Listener Container，并在组内路由到 Handler。首期不设计自定义注解扫描和 BeanPostProcessor。
 
+### 7.1.1 Entity / Mapper 仓库约定
+
+**Entity 类**（4 个：`OntEventOutbox`、`OntEventConsumeRecord`、`OntEventDeadLetter`、`OntEventReplayLog`）遵循仓库现有规范：
+
+- `@Data` + `@EqualsAndHashCode(callSuper = true)`（Lombok）
+- `@TableName("ont_event_outbox")` 等（MyBatis-Plus 表映射）
+- `@Schema(description = "...")` 在类和每个字段上（OpenAPI v3）
+- 主键：`@TableId(type = IdType.ASSIGN_ID)` — 雪花算法分配，与 DDL 的 `bigint` 对齐
+- 审计字段：`@TableField(fill = FieldFill.INSERT)` 在 `createBy`/`createTime`/`delFlag`；`@TableField(fill = FieldFill.UPDATE)` 在 `updateBy`/`updateTime`（由 `MybatisPlusMetaObjectHandler` 自动填充）
+- 逻辑删除：`@TableLogic` 在 `delFlag`（`'0'` 正常 / `'1'` 删除）
+- `private static final long serialVersionUID = 1L;`
+- 可选继承 `Model<T>`（ActiveRecord 模式），与 `OntNamespace` 一致；也可不继承，与 `OntOntologyProject` 一致
+
+**Mapper 接口**（4 个：`OntEventOutboxMapper`、`OntEventConsumeRecordMapper`、`OntEventDeadLetterMapper`、`OntEventReplayLogMapper`）遵循仓库现有规范：
+
+- `@Mapper` 注解
+- `extends BaseMapper<T>` 获得 MyBatis-Plus 标准 CRUD
+- 自定义 SQL 使用 `@Select`/`@Update` 注解 + `@Param` 绑定，不使用 XML
+- 领取/租约更新/幂等插入等操作在 Mapper 上定义自定义方法
+
 ### 7.2 首期消费者
 
 | Group | 事件 | 行为 |
@@ -497,6 +613,8 @@ public interface OntologyEventHandler {
 ## 8. 配置设计
 
 复用现有 `spring.data.redis.*`，不在本模块重复配置 host、password、database。
+
+> **RedisTemplate 选择**：`pig-common-data` 的 `RedisTemplateConfiguration` 已注册 `@Primary RedisTemplate<String,Object>`（JDK 序列化器）。本模块所有 Stream 操作（XADD/XREADGROUP/XACK/XAUTOCLAIM/XINFO）**必须使用 `StringRedisTemplate`**（Spring Boot 自动配置的原生 Bean，key/value 均为 String 序列化），否则 Stream 记录的 field/value 会被 JDK 序列化导致 Redis CLI 不可读、跨语言不兼容。`StringRedisTemplate` 无需额外声明 Bean，直接构造注入即可。
 
 ```yaml
 ontology:
@@ -527,6 +645,8 @@ ontology:
 
 ## 9. 接口设计
 
+> 路径前缀 `/admin/ontology/events`，与仓库其他 ontology 模块一致（如 `/admin/ontology/versions`）。`/admin` 为 `pig-boot` 的 context-path，微服务版由 gateway 路由剥离。
+
 | 方法 | 路径 | 权限 | 说明 |
 |---|---|---|---|
 | GET | `/ontology/events/overview` | `ontology_event_view` | Stream/Outbox/PEL/DLQ 概览 |
@@ -537,6 +657,8 @@ ontology:
 | POST | `/ontology/events/dead-letters/{id}/replay` | `ontology_event_admin` | 指定 Group 死信回放 |
 | POST | `/ontology/events/replays` | `ontology_event_admin` | 受控批量回放 |
 | POST | `/ontology/events/dead-letters/{id}/resolve` | `ontology_event_admin` | 人工标记已处理/忽略 |
+
+Controller 注解：`@RestController`、`@RequiredArgsConstructor`、`@RequestMapping("/ontology/events")`、`@Tag`、`@SecurityRequirement(name = HttpHeaders.AUTHORIZATION)`，每个端点使用 `@Operation` 和 `@HasPermission`，写操作加 `@SysLog`。
 
 - 批量回放和强制重试接入模块 36 审批。
 - 指标优先通过 Actuator/Micrometer 暴露，不另造一套与监控系统不兼容的 metrics API。
@@ -557,6 +679,10 @@ web/src/views/ontology/event/components/DeadLetterTable.vue
 web/src/views/ontology/event/components/EventReplayDialog.vue
 ```
 
+API 函数命名遵循仓库约定：`fetchEventOverview`、`fetchOutboxPage`、`retryOutboxObj`、`fetchConsumerGroups`、`fetchDeadLetterPage`、`replayDeadLetterObj`、`createReplay`、`resolveDeadLetterObj`。URL 前缀 `/admin/ontology/events`。
+
+Type 定义遵循仓库约定：`EventOverviewVO`、`OutboxQuery`（含 `current?`/`size?`）、`OutboxVO`、`ConsumerGroupVO`、`DeadLetterQuery`、`DeadLetterVO`、`ReplayRequest`、`ResolveRequest`。
+
 页面：
 
 - 概览：Outbox PENDING/FAILED、Stream 长度、各 Group lag/PEL、DLQ OPEN。
@@ -572,8 +698,10 @@ web/src/views/ontology/event/components/EventReplayDialog.vue
 迁移文件：
 
 ```text
-V18__ontology_event_backbone.sql
+V19__ontology_event_backbone.sql
 ```
+
+> 版本号说明：原设计写 `V18`，但 V18 已被版本演化模块（`V18__ontology_versioning.sql`）占用，故改为 V19。
 
 创建：
 
@@ -583,28 +711,84 @@ V18__ontology_event_backbone.sql
 - `ont_event_replay_log`
 - 菜单与权限
 
-菜单使用 901500 段，写全现有列，只给角色 1 授权：
+菜单使用 **901400** 段（901300 为版本管理，901400 为下一个空闲段），sort_order 为 **14**，写全现有列，只给角色 1 授权：
 
 ```sql
+-- ----------------------------
+-- 菜单：本体建模 / 事件中心
+-- ----------------------------
 INSERT INTO sys_menu
 (menu_id, name, permission, path, component, parent_id, icon, visible,
  sort_order, keep_alive, embedded, menu_type,
  create_by, create_time, update_by, update_time, del_flag)
 VALUES
-(901500, '事件中心', NULL, '/ontology/event/index', NULL, 900000,
- 'ele-Connection', '1', 15, '0', NULL, '0',
- 'admin', now(), 'admin', now(), '0'),
-(901501, '事件查看', 'ontology_event_view', NULL, NULL, 901500,
+(901400, '事件中心', NULL, '/ontology/event/index', NULL, 900000,
+ 'ele-Connection', '1', 14, '0', NULL, '0',
+ 'admin', now(), 'admin', now(), '0')
+ON CONFLICT (menu_id) DO NOTHING;
+
+-- ----------------------------
+-- 按钮权限：查看 / 管理
+-- ----------------------------
+INSERT INTO sys_menu
+(menu_id, name, permission, path, component, parent_id, icon, visible,
+ sort_order, keep_alive, embedded, menu_type,
+ create_by, create_time, update_by, update_time, del_flag)
+VALUES
+(901401, '事件查看', 'ontology_event_view', NULL, NULL, 901400,
  NULL, '1', 1, '0', NULL, '1',
  'admin', now(), 'admin', now(), '0'),
-(901502, '事件管理', 'ontology_event_admin', NULL, NULL, 901500,
+(901402, '事件管理', 'ontology_event_admin', NULL, NULL, 901400,
  NULL, '1', 2, '0', NULL, '1',
  'admin', now(), 'admin', now(), '0')
 ON CONFLICT (menu_id) DO NOTHING;
 
+-- ----------------------------
+-- 角色-菜单映射（仅管理员角色1）
+-- ----------------------------
 INSERT INTO sys_role_menu (role_id, menu_id)
-VALUES (1, 901500), (1, 901501), (1, 901502)
+VALUES (1, 901400), (1, 901401), (1, 901402)
 ON CONFLICT (role_id, menu_id) DO NOTHING;
+
+-- ----------------------------
+-- 迁移完整性断言
+-- ----------------------------
+DO $$
+BEGIN
+  -- 1. 四张表存在
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ont_event_outbox') THEN
+    RAISE EXCEPTION 'Outbox 表 ont_event_outbox 未创建';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ont_event_consume_record') THEN
+    RAISE EXCEPTION '消费记录表 ont_event_consume_record 未创建';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ont_event_dead_letter') THEN
+    RAISE EXCEPTION '死信表 ont_event_dead_letter 未创建';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ont_event_replay_log') THEN
+    RAISE EXCEPTION '回放日志表 ont_event_replay_log 未创建';
+  END IF;
+
+  -- 2. 事件中心菜单存在
+  IF NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = 901400 AND del_flag = '0') THEN
+    RAISE EXCEPTION '事件中心菜单(901400)未创建';
+  END IF;
+
+  -- 3. 按钮权限存在
+  IF NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = 901401 AND permission = 'ontology_event_view' AND del_flag = '0') THEN
+    RAISE EXCEPTION '事件查看权限(901401)未创建';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = 901402 AND permission = 'ontology_event_admin' AND del_flag = '0') THEN
+    RAISE EXCEPTION '事件管理权限(901402)未创建';
+  END IF;
+
+  -- 4. 角色-菜单映射存在
+  IF (SELECT COUNT(*) FROM sys_role_menu WHERE role_id = 1 AND menu_id BETWEEN 901400 AND 901402) != 3 THEN
+    RAISE EXCEPTION '管理员角色未完整分配事件中心菜单';
+  END IF;
+
+  RAISE NOTICE 'V19 事件驱动骨干EDA模块迁移完成';
+END $$;
 ```
 
 迁移不创建 Redis Consumer Group；Group 在应用启动时幂等创建，以便不同环境使用配置化 Stream Key。
@@ -711,4 +895,79 @@ Micrometer 指标：
 
 ---
 
-> 最终定位：本模块提供可恢复、可观测、至少一次的领域事件传输骨干。Outbox 解决“业务事务内应产生事件”的可靠记录，Redis Streams 解决跨进程传输，Inbox 和业务幂等解决重复投递；三者缺一不可。它不替代时序平台、命令总线或专业高吞吐消息平台。
+> 最终定位：本模块提供可恢复、可观测、至少一次的领域事件传输骨干。Outbox 解决”业务事务内应产生事件”的可靠记录，Redis Streams 解决跨进程传输，Inbox 和业务幂等解决重复投递；三者缺一不可。它不替代时序平台、命令总线或专业高吞吐消息平台。
+
+---
+
+## 16. 包结构与开发文件清单
+
+### 16.1 后端包结构
+
+```text
+com.pig4cloud.pig.ontology.event
+  ├── config/
+  │   ├── OntologyEventProperties.java          # @ConfigurationProperties(“ontology.event”)
+  │   └── OntologyEventConfiguration.java       # StreamMessageListenerContainer / Relay / Reclaim 调度配置
+  ├── model/
+  │   ├── OntologyDomainEvent.java              # 事件写入模型（Service 构建后传给 Publisher）
+  │   └── OntologyEventEnvelope.java            # 统一 Envelope（序列化为 JSON 写入 Outbox / Redis）
+  ├── entity/
+  │   ├── OntEventOutbox.java
+  │   ├── OntEventConsumeRecord.java
+  │   ├── OntEventDeadLetter.java
+  │   └── OntEventReplayLog.java
+  ├── mapper/
+  │   ├── OntEventOutboxMapper.java             # 含 @Select SKIP LOCKED 领取、@Update 租约
+  │   ├── OntEventConsumeRecordMapper.java       # 含幂等插入（ON CONFLICT DO NOTHING）
+  │   ├── OntEventDeadLetterMapper.java
+  │   └── OntEventReplayLogMapper.java
+  ├── service/
+  │   ├── OntDomainEventPublisher.java          # append() — Propagation.MANDATORY
+  │   ├── OutboxRelayService.java               # 轮询领取 + XADD + 状态更新
+  │   ├── EventConsumeService.java              # Inbox 幂等领取 + Handler 分发
+  │   ├── EventReclaimService.java              # PEL reclaim + 死信判定
+  │   ├── EventReplayService.java               # 受控回放
+  │   ├── EventQueryService.java                # 管理控制台查询
+  │   └── EventStreamAdminService.java          # Stream/Group 初始化（幂等创建）
+  │   └── impl/                                  # 各 Service 实现
+  ├── handler/
+  │   ├── OntologyEventHandler.java             # Handler 接口
+  │   ├── OntologyEventDispatcher.java          # 按 group 创建 Listener + 路由
+  │   ├── SparqlCacheEventHandler.java          # ontology-sparql-cache-v1（首期只记录指标）
+  │   ├── VisualizationEventHandler.java        # ontology-visualization-v1
+  │   ├── VersionWorkspaceEventHandler.java     # ontology-version-workspace-v1
+  │   └── SecurityAuditEventHandler.java        # ontology-security-audit-v1
+  ├── dto/
+  │   ├── OutboxQuery.java
+  │   ├── DeadLetterQuery.java
+  │   ├── ReplayRequest.java
+  │   └── ResolveRequest.java
+  ├── vo/
+  │   ├── EventOverviewVO.java
+  │   ├── OutboxVO.java
+  │   ├── ConsumerGroupVO.java
+  │   └── DeadLetterVO.java
+  ├── controller/
+  │   └── OntEventController.java               # /ontology/events/**
+  └── metric/
+      └── OntologyEventMetrics.java             # Micrometer 指标绑定
+```
+
+### 16.2 前端文件清单
+
+```text
+web/src/types/ontology/event.ts
+web/src/api/ontology/event.ts
+web/src/views/ontology/event/index.vue
+web/src/views/ontology/event/components/EventOverview.vue
+web/src/views/ontology/event/components/OutboxTable.vue
+web/src/views/ontology/event/components/ConsumerGroupTable.vue
+web/src/views/ontology/event/components/DeadLetterTable.vue
+web/src/views/ontology/event/components/EventReplayDialog.vue
+```
+
+### 16.3 Flyway 迁移文件
+
+```text
+server/pig-common/pig-common-data/src/main/resources/db/migration/V19__ontology_event_backbone.sql
+```
