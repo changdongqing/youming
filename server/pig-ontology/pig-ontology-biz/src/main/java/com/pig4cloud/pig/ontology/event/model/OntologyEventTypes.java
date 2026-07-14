@@ -43,4 +43,7 @@ public final class OntologyEventTypes {
 	/** 扩展绑定变更 */
 	public static final String EXTENSION_BINDING_CHANGED = "EXTENSION_BINDING_CHANGED";
 
+	/** 映射版本发布：映射配置快照发布为不可变版本 */
+	public static final String MAPPING_VERSION_PUBLISHED = "MAPPING_VERSION_PUBLISHED";
+
 }
