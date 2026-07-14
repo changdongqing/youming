@@ -35,6 +35,14 @@ import com.pig4cloud.pig.ontology.entity.OntUnit;
 import com.pig4cloud.pig.ontology.event.model.OntologyDomainEvent;
 import com.pig4cloud.pig.ontology.event.model.OntologyEventTypes;
 import com.pig4cloud.pig.ontology.event.service.OntDomainEventPublisher;
+import com.pig4cloud.pig.ontology.security.masking.DataMaskingService;
+import com.pig4cloud.pig.ontology.security.policy.DataAction;
+import com.pig4cloud.pig.ontology.security.policy.DecisionEffect;
+import com.pig4cloud.pig.ontology.security.policy.OntologyDataPolicyService;
+import com.pig4cloud.pig.ontology.security.policy.PolicyDecision;
+import com.pig4cloud.pig.ontology.security.policy.SecuredResource;
+import com.pig4cloud.pig.ontology.security.policy.SecuritySubject;
+import com.pig4cloud.pig.ontology.security.policy.SecuritySubjectResolver;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyEnumMapper;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyLabelMapper;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
@@ -148,6 +156,12 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 	private final OntIriUniquenessService iriUniquenessService;
 
 	private final OntDomainEventPublisher eventPublisher;
+
+	private final OntologyDataPolicyService dataPolicyService;
+
+	private final SecuritySubjectResolver securitySubjectResolver;
+
+	private final DataMaskingService dataMaskingService;
 
 	// ==================== 查询 ====================
 
@@ -485,7 +499,50 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 			.filter(Objects::nonNull).collect(Collectors.toSet());
 		Map<Long, String> unitSymbolMap = batchLoadUnitSymbols(unitIds);
 
-		return values.stream().map(v -> toDataValueVO(v, propMap, labelMap, unitSymbolMap)).toList();
+		// 模块36：安全策略过滤和脱敏
+		OntEntityInstance instance = this.getById(instanceId);
+		Long ontologyId = instance != null ? instance.getOntologyId() : null;
+		SecuritySubject subject = securitySubjectResolver.resolve();
+
+		return values.stream()
+			// 策略决策：DENY 的属性值不返回
+			.filter(v -> {
+				if (ontologyId == null) {
+					return true;
+				}
+				String levelCode = v.getSecurityLevelCode() != null ? v.getSecurityLevelCode()
+					: (propMap.containsKey(v.getDataPropertyId())
+						? propMap.get(v.getDataPropertyId()).getSecurityLevelCode() : "INTERNAL");
+				SecuredResource resource = SecuredResource.builder()
+					.resourceType("DATA_PROPERTY")
+					.resourceId(v.getDataPropertyId())
+					.securityLevelCode(levelCode)
+					.build();
+				PolicyDecision decision = dataPolicyService.decide(subject, ontologyId, resource, DataAction.VIEW);
+				return decision.getEffect() != DecisionEffect.DENY;
+			})
+			// MASK 的属性值替换为脱敏展示值
+			.map(v -> {
+				if (ontologyId == null) {
+					return toDataValueVO(v, propMap, labelMap, unitSymbolMap);
+				}
+				String levelCode = v.getSecurityLevelCode() != null ? v.getSecurityLevelCode()
+					: (propMap.containsKey(v.getDataPropertyId())
+						? propMap.get(v.getDataPropertyId()).getSecurityLevelCode() : "INTERNAL");
+				SecuredResource resource = SecuredResource.builder()
+					.resourceType("DATA_PROPERTY")
+					.resourceId(v.getDataPropertyId())
+					.securityLevelCode(levelCode)
+					.build();
+				PolicyDecision decision = dataPolicyService.decide(subject, ontologyId, resource, DataAction.VIEW);
+				OntInstanceDataValueVO vo = toDataValueVO(v, propMap, labelMap, unitSymbolMap);
+				if (decision.getEffect() == DecisionEffect.MASK && vo.getLiteralValue() != null) {
+					vo.setLiteralValue(dataMaskingService.mask(vo.getLiteralValue(),
+						decision.getMaskType(), null));
+				}
+				return vo;
+			})
+			.toList();
 	}
 
 	@Override
