@@ -13,6 +13,9 @@ import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntUnit;
 import com.pig4cloud.pig.ontology.entity.OntDataProperty;
 import com.pig4cloud.pig.ontology.entity.OntObjectProperty;
+import com.pig4cloud.pig.ontology.event.model.OntologyDomainEvent;
+import com.pig4cloud.pig.ontology.event.model.OntologyEventTypes;
+import com.pig4cloud.pig.ontology.event.service.OntDomainEventPublisher;
 import com.pig4cloud.pig.ontology.mapper.OntEntityInstanceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeMapper;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
@@ -56,6 +59,8 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 
 	private final OntEntityInstanceMapper entityInstanceMapper;
 
+	private final OntDomainEventPublisher eventPublisher;
+
 	@Override
 	@Transactional(rollbackFor = Exception.class)
 	public R<OntNamespace> saveNamespace(OntNamespace namespace) {
@@ -70,6 +75,7 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 			namespace.setSortOrder(0);
 		}
 		this.save(namespace);
+		publishSchemaChanged(namespace.getId(), null, "CREATED");
 		return R.ok(namespace);
 	}
 
@@ -90,6 +96,7 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 			update.setDescription(namespace.getDescription());
 			update.setSortOrder(namespace.getSortOrder());
 			this.updateById(update);
+			publishSchemaChanged(old.getId(), null, "UPDATED");
 			return R.ok(this.getById(old.getId()));
 		}
 
@@ -122,6 +129,7 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 		}
 		namespace.setIsBuiltin(EXTENSION);
 		this.updateById(namespace);
+		publishSchemaChanged(namespace.getId(), null, "UPDATED");
 		return R.ok(this.getById(namespace.getId()));
 	}
 
@@ -159,7 +167,22 @@ public class OntNamespaceServiceImpl extends ServiceImpl<OntNamespaceMapper, Ont
 		if (instanceCount > 0) {
 			return R.failed("该命名空间被" + instanceCount + "个实例引用，不能删除");
 		}
-		return R.ok(this.removeById(id));
+		this.removeById(id);
+		publishSchemaChanged(id, null, "DELETED");
+		return R.ok(true);
+	}
+
+	/**
+	 * 发布 Schema 变更事件到 Outbox。
+	 */
+	private void publishSchemaChanged(Long aggregateId, Long ontologyId, String operation) {
+		eventPublisher.append(OntologyDomainEvent.builder()
+			.eventType(OntologyEventTypes.ONTOLOGY_SCHEMA_CHANGED)
+			.ontologyId(ontologyId)
+			.aggregateType("NAMESPACE")
+			.aggregateId(aggregateId != null ? aggregateId.toString() : null)
+			.operation(operation)
+			.build());
 	}
 
 	private R<OntNamespace> validateNamespace(OntNamespace namespace, boolean edit) {

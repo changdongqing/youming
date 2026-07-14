@@ -32,6 +32,9 @@ import com.pig4cloud.pig.ontology.entity.OntObjectPropertyLabel;
 import com.pig4cloud.pig.ontology.entity.OntObjectPropertyRange;
 import com.pig4cloud.pig.ontology.entity.OntOntologyProject;
 import com.pig4cloud.pig.ontology.entity.OntUnit;
+import com.pig4cloud.pig.ontology.event.model.OntologyDomainEvent;
+import com.pig4cloud.pig.ontology.event.model.OntologyEventTypes;
+import com.pig4cloud.pig.ontology.event.service.OntDomainEventPublisher;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyEnumMapper;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyLabelMapper;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
@@ -143,6 +146,8 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 	private final OntUnitMapper unitMapper;
 
 	private final OntIriUniquenessService iriUniquenessService;
+
+	private final OntDomainEventPublisher eventPublisher;
 
 	// ==================== 查询 ====================
 
@@ -335,6 +340,7 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 			insertRelations(instance.getId(), request.getObjectRelations());
 		}
 
+		publishInstanceChanged(instance, "CREATED");
 		return R.ok(this.getById(instance.getId()));
 	}
 
@@ -359,6 +365,7 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 				.set(OntEntityInstance::getSortOrder,
 					request.getSortOrder() == null ? old.getSortOrder() : request.getSortOrder())
 				.set(OntEntityInstance::getRemarks, request.getRemarks()));
+			publishInstanceChanged(old, "UPDATED");
 			return R.ok(this.getById(old.getId()));
 		}
 
@@ -421,6 +428,7 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 			.set(OntEntityInstance::getSortOrder,
 				request.getSortOrder() == null ? old.getSortOrder() : request.getSortOrder())
 			.set(OntEntityInstance::getRemarks, request.getRemarks()));
+		publishInstanceChanged(old, "UPDATED");
 		return R.ok(this.getById(old.getId()));
 	}
 
@@ -451,7 +459,9 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 			.eq(OntInstanceDataValue::getInstanceId, id));
 		relationMapper.delete(Wrappers.<OntInstanceObjectRelation>lambdaQuery()
 			.eq(OntInstanceObjectRelation::getSubjectInstanceId, id));
-		return R.ok(this.removeById(id));
+		this.removeById(id);
+		publishInstanceChanged(instance, "DELETED");
+		return R.ok(true);
 	}
 
 	// ==================== 数据值接口 ====================
@@ -1474,6 +1484,19 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 		return rels.stream()
 			.collect(Collectors.groupingBy(OntInstanceObjectRelation::getObjectInstanceId,
 				Collectors.summingInt(r -> 1)));
+	}
+
+	/**
+	 * 发布实例变更事件到 Outbox。
+	 */
+	private void publishInstanceChanged(OntEntityInstance instance, String operation) {
+		eventPublisher.append(OntologyDomainEvent.builder()
+			.eventType(OntologyEventTypes.ONTOLOGY_INSTANCE_CHANGED)
+			.ontologyId(instance.getOntologyId())
+			.aggregateType("ENTITY_INSTANCE")
+			.aggregateId(instance.getId() != null ? instance.getId().toString() : null)
+			.operation(operation)
+			.build());
 	}
 
 }
