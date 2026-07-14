@@ -2,13 +2,12 @@
  * Copyright (c) 2026 youming Authors. All Rights Reserved.
  */
 
-package com.pig4cloud.pig.ontology.entity;
+package com.pig4cloud.pig.ontology.security.entity;
 
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.activerecord.Model;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -18,51 +17,51 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * 实体类型。
+ * 高风险操作审批请求（不做逻辑删除）。
  *
  * @author youming
  */
 @Data
-@TableName("ont_entity_type")
-@Schema(description = "实体类型")
+@TableName("ont_operation_approval_request")
+@Schema(description = "高风险操作审批请求")
 @EqualsAndHashCode(callSuper = true)
-public class OntEntityType extends Model<OntEntityType> {
+public class OntOperationApprovalRequest extends Model<OntOperationApprovalRequest> {
 
 	private static final long serialVersionUID = 1L;
 
 	@TableId(type = IdType.ASSIGN_ID)
-	@Schema(description = "实体类型ID")
+	@Schema(description = "审批请求ID")
 	private Long id;
 
-	@Schema(description = "全局唯一IRI")
-	private String iri;
+	@Schema(description = "审批编号")
+	private String requestNo;
 
-	@Schema(description = "英文名称（IRI本地标识符）")
-	private String name;
+	@Schema(description = "操作类型")
+	private String operationType;
 
-	@Schema(description = "定义")
-	private String definition;
+	@Schema(description = "目标引用")
+	private String targetRef;
 
-	@Schema(description = "是否抽象类，1是0否")
-	private String isAbstract;
+	@Schema(description = "目标摘要（SHA-256）")
+	private String targetDigest;
 
-	@Schema(description = "是否内置，1是0否")
-	private String isBuiltin;
+	@Schema(description = "参数摘要（SHA-256）")
+	private String payloadDigest;
 
-	@Schema(description = "本体工程ID")
-	private Long ontologyId;
+	@Schema(description = "发起人ID")
+	private Long requestedBy;
 
-	@Schema(description = "命名空间ID")
-	private Long namespaceId;
+	@Schema(description = "需要审批人数：1或2")
+	private Integer requiredApprovals;
 
-	@Schema(description = "排序")
-	private Integer sortOrder;
+	@Schema(description = "状态：PENDING/APPROVED/REJECTED/EXPIRED/CONSUMED/CANCELLED")
+	private String status;
 
-	@Schema(description = "备注")
-	private String remarks;
+	@Schema(description = "过期时间")
+	private LocalDateTime expiresAt;
 
-	@Schema(description = "安全级别编码，默认INTERNAL")
-	private String securityLevelCode;
+	@Schema(description = "执行时间")
+	private LocalDateTime executedAt;
 
 	@TableField(fill = FieldFill.INSERT)
 	@Schema(description = "创建人")
@@ -79,10 +78,5 @@ public class OntEntityType extends Model<OntEntityType> {
 	@TableField(fill = FieldFill.UPDATE)
 	@Schema(description = "更新时间")
 	private LocalDateTime updateTime;
-
-	@TableLogic
-	@TableField(fill = FieldFill.INSERT)
-	@Schema(description = "删除标记,1:已删除,0:正常")
-	private String delFlag;
 
 }

@@ -70,6 +70,9 @@ public class OntEntityInstance extends Model<OntEntityInstance> {
 	@Schema(description = "治理说明/源异常说明")
 	private String remarks;
 
+	@Schema(description = "安全级别编码覆盖，NULL继承上级")
+	private String securityLevelCode;
+
 	@TableField(fill = FieldFill.INSERT)
 	@Schema(description = "创建人")
 	private String createBy;

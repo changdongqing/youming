@@ -2,7 +2,7 @@
  * Copyright (c) 2026 youming Authors. All Rights Reserved.
  */
 
-package com.pig4cloud.pig.ontology.entity;
+package com.pig4cloud.pig.ontology.security.entity;
 
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -18,57 +18,45 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * 实例数据属性值。
+ * 安全级别定义。
  *
  * @author youming
  */
 @Data
-@TableName("ont_instance_data_value")
-@Schema(description = "实例数据属性值")
+@TableName("ont_security_level")
+@Schema(description = "安全级别定义")
 @EqualsAndHashCode(callSuper = true)
-public class OntInstanceDataValue extends Model<OntInstanceDataValue> {
+public class OntSecurityLevel extends Model<OntSecurityLevel> {
 
 	private static final long serialVersionUID = 1L;
 
 	@TableId(type = IdType.ASSIGN_ID)
-	@Schema(description = "数据值ID")
+	@Schema(description = "安全级别ID")
 	private Long id;
 
-	@Schema(description = "实例ID")
-	private Long instanceId;
+	@Schema(description = "级别编码，唯一")
+	private String levelCode;
 
-	@Schema(description = "数据属性ID")
-	private Long dataPropertyId;
+	@Schema(description = "级别名称")
+	private String levelName;
 
-	@Schema(description = "规范化词法值")
-	private String literalValue;
+	@Schema(description = "级别排序值，越大越敏感")
+	private Integer levelRank;
 
-	@Schema(description = "字面量类型：STRING/URI/DATE/INTEGER/DECIMAL/BOOLEAN")
-	private String literalType;
+	@Schema(description = "默认查看效果：ALLOW/MASK/DENY")
+	private String defaultViewEffect;
 
-	@Schema(description = "单位ID，UNIT_REF必填")
-	private Long unitId;
+	@Schema(description = "默认导出效果：ALLOW/MASK/DENY")
+	private String defaultExportEffect;
 
-	@Schema(description = "UNIT_REF词法快照")
-	private String literalSymbol;
+	@Schema(description = "描述")
+	private String description;
 
-	@Schema(description = "同属性多值排序")
+	@Schema(description = "是否内置：1是 0否")
+	private String isBuiltin;
+
+	@Schema(description = "排序值")
 	private Integer sortOrder;
-
-	@Schema(description = "安全级别编码覆盖，NULL继承上级")
-	private String securityLevelCode;
-
-	@Schema(description = "是否加密：0明文 1密文")
-	private String isEncrypted;
-
-	@Schema(description = "AES-GCM密文（含认证标签）")
-	private byte[] encryptedValue;
-
-	@Schema(description = "密钥版本ID")
-	private String cryptoKeyId;
-
-	@Schema(description = "加密随机IV")
-	private byte[] cryptoIv;
 
 	@TableField(fill = FieldFill.INSERT)
 	@Schema(description = "创建人")

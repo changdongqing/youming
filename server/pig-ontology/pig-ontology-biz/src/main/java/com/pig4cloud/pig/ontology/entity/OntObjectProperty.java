@@ -82,6 +82,9 @@ public class OntObjectProperty extends Model<OntObjectProperty> {
 	@Schema(description = "平台治理备注")
 	private String remarks;
 
+	@Schema(description = "安全级别编码，默认INTERNAL")
+	private String securityLevelCode;
+
 	@TableField(fill = FieldFill.INSERT)
 	@Schema(description = "创建人")
 	private String createBy;
