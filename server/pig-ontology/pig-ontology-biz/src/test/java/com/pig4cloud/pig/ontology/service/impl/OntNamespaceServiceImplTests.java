@@ -10,6 +10,7 @@ import com.pig4cloud.pig.common.core.util.R;
 import com.pig4cloud.pig.ontology.entity.OntEntityType;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntUnit;
+import com.pig4cloud.pig.ontology.event.service.OntDomainEventPublisher;
 import com.pig4cloud.pig.ontology.mapper.OntEntityTypeMapper;
 import com.pig4cloud.pig.ontology.mapper.OntEntityInstanceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntDataPropertyMapper;
@@ -65,11 +66,15 @@ class OntNamespaceServiceImplTests {
 	@Mock
 	private OntEntityInstanceMapper entityInstanceMapper;
 
+	@Mock
+	private OntDomainEventPublisher eventPublisher;
+
 	private OntNamespaceServiceImpl service;
 
 	@BeforeEach
 	void setUp() {
-		service = new OntNamespaceServiceImpl(unitMapper, entityTypeMapper, dataPropertyMapper, objectPropertyMapper, entityInstanceMapper);
+		service = new OntNamespaceServiceImpl(unitMapper, entityTypeMapper, dataPropertyMapper, objectPropertyMapper,
+				entityInstanceMapper, eventPublisher);
 		ReflectionTestUtils.setField(service, "baseMapper", namespaceMapper);
 	}
 
