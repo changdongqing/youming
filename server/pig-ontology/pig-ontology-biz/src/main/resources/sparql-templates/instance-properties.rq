@@ -1,0 +1,8 @@
+# 实例属性：查询实例全部断言
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?predicate ?value ?predicateLabel WHERE {
+  <${instanceIri}> ?predicate ?value .
+  OPTIONAL { ?predicate rdfs:label ?predicateLabel }
+}
+ORDER BY ?predicate
+LIMIT 1000

@@ -1,0 +1,8 @@
+# 子类层次：查询指定类的传递子类
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?subClass ?label WHERE {
+  ?subClass rdfs:subClassOf+ <${classIri}> .
+  OPTIONAL { ?subClass rdfs:label ?label }
+}
+ORDER BY ?subClass
+LIMIT 1000

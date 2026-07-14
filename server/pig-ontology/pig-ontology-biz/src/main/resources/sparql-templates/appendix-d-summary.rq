@@ -1,0 +1,10 @@
+# 附录D摘要：按实例IRI前缀统计实例数（不硬编码错误总数）
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?prefix (COUNT(?instance) AS ?count) WHERE {
+  ?instance rdf:type ?type .
+  BIND(SUBSTR(STR(?instance), 1, 40) AS ?prefix)
+}
+GROUP BY ?prefix
+ORDER BY DESC(?count)
+LIMIT 1000

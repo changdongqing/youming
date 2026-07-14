@@ -41,6 +41,9 @@ import com.pig4cloud.pig.ontology.mapper.OntObjectPropertyLabelMapper;
 import com.pig4cloud.pig.ontology.mapper.OntObjectPropertyMapper;
 import com.pig4cloud.pig.ontology.mapper.OntObjectPropertyRangeMapper;
 import com.pig4cloud.pig.ontology.mapper.OntUnitMapper;
+import com.pig4cloud.pig.ontology.version.mapper.OntOntologyVersionMapper;
+import com.pig4cloud.pig.ontology.version.serialization.OntologyVersionDeclarationContributor;
+import com.pig4cloud.pig.ontology.version.snapshot.SnapshotModelBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.jena.datatypes.xsd.XSDDatatype;
@@ -121,6 +124,12 @@ public class OntologyModelExporter {
 
 	private final ExportScopeResolver scopeResolver;
 
+	private final OntologyVersionDeclarationContributor versionDeclarationContributor;
+
+	private final SnapshotModelBuilder snapshotModelBuilder;
+
+	private final OntOntologyVersionMapper versionMapper;
+
 	/**
 	 * 组装完整本体 Model（Schema + Data）。
 	 * @param ontologyId 本体工程ID
@@ -131,22 +140,59 @@ public class OntologyModelExporter {
 	 */
 	public Model buildCompleteModel(Long ontologyId, ExportScope scope,
 			PredicateStrategy predicateStrategy, Long targetTypeFilter) {
+		return buildCompleteModel(ontologyId, scope, predicateStrategy, targetTypeFilter, null);
+	}
+
+	/**
+	 * 组装完整本体 Model（Schema + Data），支持版本声明。
+	 * @param ontologyId 本体工程ID
+	 * @param scope 导出范围
+	 * @param predicateStrategy 谓词IRI策略
+	 * @param targetTypeFilter 实例子树过滤的实体类型ID（scope=INSTANCE_SUBTREE 时非空）
+	 * @param versionId 版本ID（非空时从快照构建历史版本 Model，null 时从当前工作区读取）
+	 * @return 完整 Jena Model（含前缀映射和版本声明）
+	 */
+	public Model buildCompleteModel(Long ontologyId, ExportScope scope,
+			PredicateStrategy predicateStrategy, Long targetTypeFilter, Long versionId) {
 		Model model = ModelFactory.createDefaultModel();
 
 		// 1. 注册前缀映射
 		prefixResolver.registerPrefixes(model);
 
-		// 2. 组装 Schema 层
-		if (scope != ExportScope.INSTANCE_ONLY) {
-			buildSchemaLayer(model, ontologyId, predicateStrategy);
+		if (versionId != null) {
+			// 从版本快照构建 Schema 层（历史版本导出）
+			buildSchemaLayerFromSnapshot(model, versionId);
+		}
+		else {
+			// 2. 组装 Schema 层（当前工作区）
+			if (scope != ExportScope.INSTANCE_ONLY) {
+				buildSchemaLayer(model, ontologyId, predicateStrategy);
+			}
+
+			// 3. 组装 Data 层（当前工作区）
+			if (scope != ExportScope.SCHEMA_ONLY) {
+				buildDataLayer(model, ontologyId, predicateStrategy, scope, targetTypeFilter);
+			}
 		}
 
-		// 3. 组装 Data 层
-		if (scope != ExportScope.SCHEMA_ONLY) {
-			buildDataLayer(model, ontologyId, predicateStrategy, scope, targetTypeFilter);
-		}
+		// 4. 添加版本声明（owl:versionIRI 等）
+		versionDeclarationContributor.contribute(model, ontologyId, versionId);
 
 		return model;
+	}
+
+	/**
+	 * 从版本快照构建 Schema 层。
+	 */
+	private void buildSchemaLayerFromSnapshot(Model model, Long versionId) {
+		com.pig4cloud.pig.ontology.version.entity.OntOntologyVersion version = versionMapper
+			.selectById(versionId);
+		if (version == null || version.getSchemaSnapshot() == null) {
+			return;
+		}
+		// 委托 SnapshotModelBuilder 从快照 JSON 构建
+		Model snapshotModel = snapshotModelBuilder.buildFromSnapshot(version.getSchemaSnapshot());
+		model.add(snapshotModel);
 	}
 
 	// ==================== Schema 层 ====================

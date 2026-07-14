@@ -1,0 +1,16 @@
+# IRI/标签搜索：按 IRI 或 rdfs:label 检索
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?subject ?label ?type WHERE {
+  {
+    ?subject rdfs:label ?label .
+    FILTER(CONTAINS(LCASE(STR(?label)), LCASE("${keyword}")))
+  }
+  UNION
+  {
+    ?subject rdfs:label ?label .
+    FILTER(CONTAINS(LCASE(STR(?subject)), LCASE("${keyword}")))
+  }
+  OPTIONAL { ?subject a ?type }
+}
+ORDER BY ?label
+LIMIT 1000

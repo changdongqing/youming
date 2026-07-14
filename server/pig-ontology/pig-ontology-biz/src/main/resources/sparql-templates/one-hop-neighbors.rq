@@ -1,0 +1,19 @@
+# 一跳邻居：查询实例的入边和出边
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?direction ?neighbor ?neighborLabel ?predicate ?predicateLabel WHERE {
+  {
+    <${instanceIri}> ?predicate ?neighbor .
+    FILTER(isIRI(?neighbor))
+    BIND("OUT" AS ?direction)
+  }
+  UNION
+  {
+    ?neighbor ?predicate <${instanceIri}> .
+    FILTER(isIRI(?neighbor))
+    BIND("IN" AS ?direction)
+  }
+  OPTIONAL { ?neighbor rdfs:label ?neighborLabel }
+  OPTIONAL { ?predicate rdfs:label ?predicateLabel }
+}
+ORDER BY ?direction ?predicate
+LIMIT 1000

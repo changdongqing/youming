@@ -1,0 +1,10 @@
+# 类型统计：按 rdf:type 统计实例数
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?type (COUNT(?instance) AS ?count) ?label WHERE {
+  ?instance rdf:type ?type .
+  OPTIONAL { ?type rdfs:label ?label }
+}
+GROUP BY ?type ?label
+ORDER BY DESC(?count)
+LIMIT 1000
