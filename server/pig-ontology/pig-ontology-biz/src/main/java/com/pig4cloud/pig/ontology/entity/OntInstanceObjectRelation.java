@@ -52,6 +52,9 @@ public class OntInstanceObjectRelation extends Model<OntInstanceObjectRelation> 
 	@Schema(description = "多值顺序")
 	private Integer sortOrder;
 
+	@Schema(description = "断言来源：SEED/MANUAL/DATA_MAPPING/IOT/RULE/IMPORT/API")
+	private String assertionOrigin;
+
 	@TableField(fill = FieldFill.INSERT)
 	@Schema(description = "创建人")
 	private String createBy;

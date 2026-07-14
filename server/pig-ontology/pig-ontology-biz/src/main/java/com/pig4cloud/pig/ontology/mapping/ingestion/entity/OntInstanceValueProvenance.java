@@ -2,7 +2,7 @@
  * Copyright (c) 2026 youming Authors. All Rights Reserved.
  */
 
-package com.pig4cloud.pig.ontology.entity;
+package com.pig4cloud.pig.ontology.mapping.ingestion.entity;
 
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -18,60 +18,59 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * 实体对象实例。
+ * 数据属性值来源。
+ * <p>
+ * 记录每个映射来源的数据属性值的字段级溯源和所有权信息。
  *
  * @author youming
  */
 @Data
-@TableName("ont_entity_instance")
-@Schema(description = "实体对象实例")
+@TableName("ont_instance_value_provenance")
+@Schema(description = "数据属性值来源")
 @EqualsAndHashCode(callSuper = true)
-public class OntEntityInstance extends Model<OntEntityInstance> {
+public class OntInstanceValueProvenance extends Model<OntInstanceValueProvenance> {
 
 	private static final long serialVersionUID = 1L;
 
 	@TableId(type = IdType.ASSIGN_ID)
-	@Schema(description = "实例ID")
+	@Schema(description = "值来源ID")
 	private Long id;
 
-	@Schema(description = "完整IRI，由namespace.uri+iriLocalName拼接")
-	private String iri;
+	@Schema(description = "数据值ID")
+	private Long dataValueId;
 
-	@Schema(description = "IRI本地标识符")
-	private String iriLocalName;
+	@Schema(description = "来源绑定ID")
+	private Long sourceBindingId;
 
-	@Schema(description = "rdf:type实体类型ID")
-	private Long rdfTypeId;
+	@Schema(description = "映射版本ID")
+	private Long mappingVersionId;
 
-	@Schema(description = "UI显示标签，不替代本体数据属性")
-	private String label;
+	@Schema(description = "字段映射编码")
+	private String fieldMappingCode;
 
-	@Schema(description = "命名空间ID")
-	private Long namespaceId;
+	@Schema(description = "来源类型：COLUMN/CONSTANT")
+	private String sourceKind;
 
-	@Schema(description = "本体工程ID")
-	private Long ontologyId;
-
-	@Schema(description = "来源类型：APPENDIX_D/EXTENSION/MANUAL/DATA_MAPPING/IOT/RULE/IMPORT/API")
-	private String sourceType;
-
-	@Schema(description = "来源引用，如D-Step5")
+	@Schema(description = "来源引用（列名或constant标记）")
 	private String sourceReference;
 
-	@Schema(description = "声明模式：EXPLICIT/REFERENCE_ONLY")
-	private String declarationMode;
+	@Schema(description = "所有权策略：SOURCE_WINS/MANUAL_WINS/REJECT_CONFLICT")
+	private String ownershipPolicy;
 
-	@Schema(description = "是否内置，1是0否")
-	private String isBuiltin;
+	@Schema(description = "溯源状态：ACTIVE/OVERRIDDEN/STALE")
+	private String provenanceStatus;
 
-	@Schema(description = "排序")
-	private Integer sortOrder;
+	@Schema(description = "源记录更新时间")
+	private LocalDateTime sourceUpdatedAt;
 
-	@Schema(description = "治理说明/源异常说明")
-	private String remarks;
+	@Schema(description = "值SHA-256哈希")
+	private String valueHash;
 
-	@Schema(description = "安全级别编码覆盖，NULL继承上级")
-	private String securityLevelCode;
+	@Schema(description = "最近作业ID")
+	private Long lastJobId;
+
+	@Schema(description = "生成时间")
+	private LocalDateTime generatedAt;
 
 	@TableField(fill = FieldFill.INSERT)
 	@Schema(description = "创建人")

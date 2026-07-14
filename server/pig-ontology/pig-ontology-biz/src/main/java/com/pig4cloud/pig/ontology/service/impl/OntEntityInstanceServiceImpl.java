@@ -163,6 +163,8 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 
 	private final DataMaskingService dataMaskingService;
 
+	private final com.pig4cloud.pig.ontology.mapping.ingestion.MappedValueWriteGuard mappedValueWriteGuard;
+
 	// ==================== 查询 ====================
 
 	@Override
@@ -581,6 +583,16 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 			}
 		}
 
+		// 来源所有权守卫：检查是否有映射来源拥有的值
+		com.pig4cloud.pig.ontology.security.policy.SecuritySubject writeSubject = securitySubjectResolver.resolve();
+		List<OntInstanceDataValue> existingValues = dataValueMapper.selectList(
+			Wrappers.<OntInstanceDataValue>lambdaQuery()
+				.eq(OntInstanceDataValue::getInstanceId, instanceId)
+				.eq(OntInstanceDataValue::getDelFlag, "0"));
+		for (OntInstanceDataValue existing : existingValues) {
+			mappedValueWriteGuard.assertWritable(existing.getId(), writeSubject, false);
+		}
+
 		// 物理删除旧有效值，批量插入新值
 		dataValueMapper.delete(Wrappers.<OntInstanceDataValue>lambdaQuery()
 			.eq(OntInstanceDataValue::getInstanceId, instanceId));
@@ -598,6 +610,17 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 		if (BUILTIN.equals(instance.getIsBuiltin())) {
 			return R.failed("内置实例语义值不可通过普通接口删除");
 		}
+		// 来源所有权守卫：检查待删除值是否被映射来源拥有
+		com.pig4cloud.pig.ontology.security.policy.SecuritySubject deleteSubject = securitySubjectResolver.resolve();
+		List<OntInstanceDataValue> toDelete = dataValueMapper.selectList(
+			Wrappers.<OntInstanceDataValue>lambdaQuery()
+				.eq(OntInstanceDataValue::getInstanceId, instanceId)
+				.eq(OntInstanceDataValue::getDataPropertyId, dataPropertyId)
+				.eq(OntInstanceDataValue::getDelFlag, "0"));
+		for (OntInstanceDataValue dv : toDelete) {
+			mappedValueWriteGuard.assertWritable(dv.getId(), deleteSubject, false);
+		}
+
 		dataValueMapper.delete(Wrappers.<OntInstanceDataValue>lambdaQuery()
 			.eq(OntInstanceDataValue::getInstanceId, instanceId)
 			.eq(OntInstanceDataValue::getDataPropertyId, dataPropertyId));
@@ -661,6 +684,7 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 		rel.setObjectKind("INSTANCE");
 		rel.setObjectInstanceId(request.getObjectInstanceId());
 		rel.setSortOrder(request.getSortOrder() == null ? 0 : request.getSortOrder());
+		rel.setAssertionOrigin("MANUAL");
 		relationMapper.insert(rel);
 
 		return R.ok(buildRelationVOs(List.of(rel)).get(0));
@@ -679,6 +703,11 @@ public class OntEntityInstanceServiceImpl extends ServiceImpl<OntEntityInstanceM
 		OntInstanceObjectRelation rel = relationMapper.selectById(relationId);
 		if (rel == null || !Objects.equals(rel.getSubjectInstanceId(), instanceId)) {
 			return R.failed("断言不存在或不属于该实例");
+		}
+		// 来源所有权守卫：映射来源创建的断言不可通过普通接口删除
+		if (rel.getAssertionOrigin() != null && !"SEED".equals(rel.getAssertionOrigin())
+			&& !"MANUAL".equals(rel.getAssertionOrigin())) {
+			return R.failed("该断言由来源" + rel.getAssertionOrigin() + "创建，不可通过普通接口删除");
 		}
 		relationMapper.deleteById(relationId);
 		return R.ok(true);
