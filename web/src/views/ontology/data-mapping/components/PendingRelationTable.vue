@@ -70,16 +70,7 @@
 			</el-table-column>
 		</el-table>
 
-		<el-pagination
-			v-model:current-page="query.current"
-			v-model:page-size="query.size"
-			:total="total"
-			layout="total, prev, pager, next, sizes"
-			:page-sizes="[10, 20, 50]"
-			@current-change="loadData"
-			@size-change="loadData"
-			class="mt8"
-		/>
+		<pagination :total="total" v-model:current="query.current" v-model:size="query.size" @pagination="loadData" />
 	</div>
 </template>
 
