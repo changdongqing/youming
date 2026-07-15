@@ -17,6 +17,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -262,12 +263,195 @@ public class PostgreSqlDataSourceConnector implements DataSourceConnector, DataS
 
 	@Override
 	public SourcePage scan(SourceScanPlan plan, SourceCursor cursor) {
-		throw new UnsupportedOperationException("scan is implemented in module 18-07");
+		throw new UnsupportedOperationException("scan requires a Connection; use scanWithConnection instead");
+	}
+
+	@Override
+	public SourcePage scanWithConnection(Connection conn, SourceScanPlan plan, SourceCursor cursor) {
+		List<String> columns = plan.columns();
+		List<String> keyColumns = plan.keyColumns();
+		if (columns == null || columns.isEmpty()) {
+			throw new IllegalArgumentException("Scan plan must specify columns");
+		}
+
+		String columnList = columns.stream()
+			.map(PostgreSqlDialect::escapeIdentifier)
+			.collect(Collectors.joining(", "));
+
+		String tableRef = PostgreSqlDialect.escapeIdentifier(plan.schemaName())
+				+ "." + PostgreSqlDialect.escapeIdentifier(plan.objectName());
+
+		StringBuilder whereClause = new StringBuilder();
+		List<Object> params = new ArrayList<>();
+
+		if (plan.filterClause() != null && !plan.filterClause().isBlank()) {
+			whereClause.append(" WHERE (").append(plan.filterClause()).append(")");
+		}
+
+		boolean hasIncremental = plan.incrementalColumn() != null && !plan.incrementalColumn().isBlank();
+		boolean hasKeyset = cursor != null && cursor.hasKeyset();
+
+		if (hasKeyset) {
+			if (keyColumns == null || keyColumns.isEmpty()) {
+				throw new IllegalArgumentException("Keyset pagination requires keyColumns in scan plan");
+			}
+
+			String pkTuple = keyColumns.stream()
+				.map(PostgreSqlDialect::escapeIdentifier)
+				.collect(Collectors.joining(", "));
+
+			if (hasIncremental && cursor.incrementalValue() != null) {
+				String incCol = PostgreSqlDialect.escapeIdentifier(plan.incrementalColumn());
+				String pkPlaceholders = keyColumns.stream().map(k -> "?").collect(Collectors.joining(", "));
+
+				if (whereClause.length() == 0) {
+					whereClause.append(" WHERE ");
+				}
+				else {
+					whereClause.append(" AND ");
+				}
+				whereClause.append("(").append(incCol).append(" > ?")
+					.append(" OR (").append(incCol).append(" = ? AND (").append(pkTuple)
+					.append(") > (").append(pkPlaceholders).append(")))");
+
+				params.add(cursor.incrementalValue());
+				params.add(cursor.incrementalValue());
+				params.addAll(cursor.lastKeyValues());
+			}
+			else {
+				String pkPlaceholders = keyColumns.stream().map(k -> "?").collect(Collectors.joining(", "));
+				if (whereClause.length() == 0) {
+					whereClause.append(" WHERE ");
+				}
+				else {
+					whereClause.append(" AND ");
+				}
+				whereClause.append("(").append(pkTuple).append(") > (").append(pkPlaceholders).append(")");
+				params.addAll(cursor.lastKeyValues());
+			}
+		}
+
+		StringBuilder orderBy = new StringBuilder(" ORDER BY ");
+		if (hasIncremental) {
+			orderBy.append(PostgreSqlDialect.escapeIdentifier(plan.incrementalColumn())).append(", ");
+		}
+		if (keyColumns != null && !keyColumns.isEmpty()) {
+			orderBy.append(keyColumns.stream()
+				.map(PostgreSqlDialect::escapeIdentifier)
+				.collect(Collectors.joining(", ")));
+		}
+		else {
+			orderBy.append(PostgreSqlDialect.escapeIdentifier(columns.get(0)));
+		}
+
+		int limit = plan.pageSize();
+		String sql = "SELECT " + columnList + " FROM " + tableRef
+				+ whereClause + orderBy + " LIMIT " + (limit + 1);
+
+		log.debug("Scan SQL: {}", sql);
+
+		List<SourceRow> rows = new ArrayList<>();
+		try (var stmt = conn.prepareStatement(sql)) {
+			stmt.setQueryTimeout(Math.max(1, plan.queryTimeoutSeconds()));
+			for (int i = 0; i < params.size(); i++) {
+				stmt.setObject(i + 1, params.get(i));
+			}
+			try (var rs = stmt.executeQuery()) {
+				while (rs.next()) {
+					Map<String, Object> values = new LinkedHashMap<>();
+					for (String col : columns) {
+						values.put(col, rs.getObject(col));
+					}
+					rows.add(new SourceRow(values));
+				}
+			}
+		}
+		catch (SQLException e) {
+			log.error("Scan failed: {}", sanitizeExceptionMessage(e));
+			throw new RuntimeException("Scan failed: " + sanitizeExceptionMessage(e), e);
+		}
+
+		boolean hasMore = rows.size() > limit;
+		if (hasMore) {
+			rows = new ArrayList<>(rows.subList(0, limit));
+		}
+
+		// 计算下一页游标
+		SourceCursor nextCursor = null;
+		if (hasMore && !rows.isEmpty()) {
+			SourceRow lastRow = rows.get(rows.size() - 1);
+			Map<String, Object> lastValues = lastRow.values();
+			List<Object> lastKeyValues = new ArrayList<>();
+			if (keyColumns != null) {
+				for (String pkCol : keyColumns) {
+					lastKeyValues.add(lastValues.get(pkCol));
+				}
+			}
+			String incValue = null;
+			if (hasIncremental) {
+				Object incObj = lastValues.get(plan.incrementalColumn());
+				incValue = incObj != null ? incObj.toString() : null;
+			}
+			nextCursor = new SourceCursor(lastKeyValues, incValue);
+		}
+
+		return new SourcePage(rows, nextCursor, hasMore);
 	}
 
 	@Override
 	public Optional<SourceRow> findByKey(SourceLookupPlan plan, SourceRecordKey key) {
-		throw new UnsupportedOperationException("findByKey is implemented in module 18-07");
+		// V1 实现通过 Connection 参数版本，此处保留接口
+		throw new UnsupportedOperationException("findByKey requires a Connection; use findByKeyWithConnection instead");
+	}
+
+	@Override
+	public Optional<SourceRow> findByKeyWithConnection(Connection conn, SourceLookupPlan plan, SourceRecordKey key) {
+		List<String> columns = plan.columns();
+		if (columns == null || columns.isEmpty()) {
+			throw new IllegalArgumentException("Lookup plan must specify columns");
+		}
+
+		String columnList = columns.stream()
+			.map(PostgreSqlDialect::escapeIdentifier)
+			.collect(Collectors.joining(", "));
+
+		String tableRef = PostgreSqlDialect.escapeIdentifier(plan.schemaName())
+				+ "." + PostgreSqlDialect.escapeIdentifier(plan.objectName());
+
+		List<String> keyColumns = plan.keyColumns();
+		if (keyColumns == null || keyColumns.isEmpty()) {
+			throw new IllegalArgumentException("Lookup plan must specify keyColumns");
+		}
+
+		String whereClause = keyColumns.stream()
+			.map(col -> PostgreSqlDialect.escapeIdentifier(col) + " = ?")
+			.collect(Collectors.joining(" AND "));
+
+		String sql = "SELECT " + columnList + " FROM " + tableRef + " WHERE " + whereClause + " LIMIT 1";
+		log.debug("FindByKey SQL: {}", sql);
+
+		try (var stmt = conn.prepareStatement(sql)) {
+			stmt.setQueryTimeout(30);
+			Map<String, Object> keyValues = key.values();
+			int i = 1;
+			for (String pkCol : keyColumns) {
+				stmt.setObject(i++, keyValues.get(pkCol));
+			}
+			try (var rs = stmt.executeQuery()) {
+				if (rs.next()) {
+					Map<String, Object> values = new LinkedHashMap<>();
+					for (String col : columns) {
+						values.put(col, rs.getObject(col));
+					}
+					return Optional.of(new SourceRow(values));
+				}
+			}
+		}
+		catch (SQLException e) {
+			log.error("FindByKey failed: {}", sanitizeExceptionMessage(e));
+			throw new RuntimeException("FindByKey failed: " + sanitizeExceptionMessage(e), e);
+		}
+		return Optional.empty();
 	}
 
 	@Override

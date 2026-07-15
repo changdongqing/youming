@@ -67,6 +67,20 @@ public interface DataSourceConnector extends AutoCloseable {
 	SourcePage scan(SourceScanPlan plan, SourceCursor cursor);
 
 	/**
+	 * 扫描数据（分页，使用外部传入连接）。
+	 * <p>
+	 * 由 18-07 同步作业模块通过 DataSourcePoolManager 获取只读连接后调用。
+	 *
+	 * @param connection 数据库连接（只读）
+	 * @param plan   扫描计划
+	 * @param cursor 游标
+	 * @return 分页数据
+	 */
+	default SourcePage scanWithConnection(java.sql.Connection connection, SourceScanPlan plan, SourceCursor cursor) {
+		throw new UnsupportedOperationException("scanWithConnection not implemented");
+	}
+
+	/**
 	 * 按主键查找单行。
 	 * <p>
 	 * V1 仅留接口签名，实际实现在 18-07 同步作业模块。
@@ -76,6 +90,21 @@ public interface DataSourceConnector extends AutoCloseable {
 	 * @return 源行
 	 */
 	java.util.Optional<SourceRow> findByKey(SourceLookupPlan plan, SourceRecordKey key);
+
+	/**
+	 * 按主键查找单行（使用外部传入连接）。
+	 * <p>
+	 * 由 18-07 同步作业模块通过 DataSourcePoolManager 获取只读连接后调用。
+	 *
+	 * @param connection 数据库连接（只读）
+	 * @param plan 查找计划
+	 * @param key  主键
+	 * @return 源行
+	 */
+	default java.util.Optional<SourceRow> findByKeyWithConnection(java.sql.Connection connection,
+			SourceLookupPlan plan, SourceRecordKey key) {
+		throw new UnsupportedOperationException("findByKeyWithConnection not implemented");
+	}
 
 	// ==================== 值对象 ====================
 
@@ -158,21 +187,53 @@ public interface DataSourceConnector extends AutoCloseable {
 	 *
 	 * @param schemaName  Schema名
 	 * @param objectName  对象名
-	 * @param columns     列名列表
+	 * @param columns     列名列表（SELECT 投影）
 	 * @param pageSize    页大小
 	 * @param queryTimeoutSeconds 查询超时
+	 * @param keyColumns  主键列名列表（用于 keyset 分页排序）
+	 * @param incrementalColumn 增量列名（可为 null，全量扫描时）
+	 * @param filterClause 过滤 WHERE 子句（可为 null）
 	 */
 	record SourceScanPlan(String schemaName, String objectName, List<String> columns,
-			int pageSize, int queryTimeoutSeconds) {
+			int pageSize, int queryTimeoutSeconds,
+			List<String> keyColumns, String incrementalColumn, String filterClause) {
+
+		/**
+		 * 兼容旧签名的工厂方法（无 keyset 信息）。
+		 */
+		public static SourceScanPlan of(String schemaName, String objectName, List<String> columns,
+				int pageSize, int queryTimeoutSeconds) {
+			return new SourceScanPlan(schemaName, objectName, columns, pageSize, queryTimeoutSeconds,
+					null, null, null);
+		}
+
 	}
 
 	/**
 	 * 游标（18-07实现）。
+	 * <p>
+	 * 全量扫描使用 lastKeyValues 做 keyset 分页；
+	 * 增量扫描使用 incrementalValue + lastKeyValues 做 (updated_at, pk) 复合 keyset。
 	 *
-	 * @param offset 偏移量
-	 * @param lastSortValue 增量游标值
+	 * @param lastKeyValues  最后一条记录的主键值（按 keyColumns 顺序）
+	 * @param incrementalValue 增量列值（时间戳或数值字符串）
 	 */
-	record SourceCursor(long offset, String lastSortValue) {
+	record SourceCursor(List<Object> lastKeyValues, String incrementalValue) {
+
+		/**
+		 * 空游标（从头开始）。
+		 */
+		public static SourceCursor initial() {
+			return new SourceCursor(null, null);
+		}
+
+		/**
+		 * 是否有 keyset 定位点。
+		 */
+		public boolean hasKeyset() {
+			return lastKeyValues != null && !lastKeyValues.isEmpty();
+		}
+
 	}
 
 	/**

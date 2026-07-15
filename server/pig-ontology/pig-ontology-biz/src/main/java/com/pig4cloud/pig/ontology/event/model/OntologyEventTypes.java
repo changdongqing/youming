@@ -49,4 +49,16 @@ public final class OntologyEventTypes {
 	/** 映射版本校验完成：映射版本通过校验进入 VALIDATED */
 	public static final String MAPPING_VERSION_VALIDATED = "MAPPING_VERSION_VALIDATED";
 
+	/** 映射作业启动：作业通过前置校验并开始扫描 */
+	public static final String MAPPING_JOB_STARTED = "MAPPING_JOB_STARTED";
+
+	/** 映射作业完成：SUCCEEDED/PARTIAL_SUCCESS */
+	public static final String MAPPING_JOB_COMPLETED = "MAPPING_JOB_COMPLETED";
+
+	/** 映射作业失败：作业级失败 */
+	public static final String MAPPING_JOB_FAILED = "MAPPING_JOB_FAILED";
+
+	/** 映射作业取消：安全停止 */
+	public static final String MAPPING_JOB_CANCELLED = "MAPPING_JOB_CANCELLED";
+
 }
