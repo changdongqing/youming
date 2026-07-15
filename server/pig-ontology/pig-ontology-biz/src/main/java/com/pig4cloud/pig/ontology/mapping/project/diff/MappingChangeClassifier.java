@@ -7,8 +7,10 @@ package com.pig4cloud.pig.ontology.mapping.project.diff;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.pig4cloud.pig.ontology.mapping.entity.OntEntityMapping;
 import com.pig4cloud.pig.ontology.mapping.entity.OntFieldMapping;
+import com.pig4cloud.pig.ontology.mapping.entity.OntRelationMapping;
 import com.pig4cloud.pig.ontology.mapping.mapper.OntEntityMappingMapper;
 import com.pig4cloud.pig.ontology.mapping.mapper.OntFieldMappingMapper;
+import com.pig4cloud.pig.ontology.mapping.mapper.OntRelationMappingMapper;
 import com.pig4cloud.pig.ontology.mapping.project.entity.OntMappingProject;
 import com.pig4cloud.pig.ontology.mapping.project.entity.OntMappingVersion;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +36,7 @@ import java.util.Objects;
  *   <tr><td>修改删除策略为SOFT_DELETE</td><td>MAJOR_HIGH_RISK</td></tr>
  *   <tr><td>修改数据源或源对象</td><td>MAJOR_HIGH_RISK</td></tr>
  * </table>
- * V1 简化：由于 18-05 关系映射子表尚未实现，仅比较工程级、版本级、实体映射和字段映射。
+ * V1 简化：比较工程级、版本级、实体映射、字段映射和关系映射子表。
  *
  * @author youming
  */
@@ -45,6 +47,8 @@ public class MappingChangeClassifier {
 	private final OntEntityMappingMapper entityMappingMapper;
 
 	private final OntFieldMappingMapper fieldMappingMapper;
+
+	private final OntRelationMappingMapper relationMappingMapper;
 
 	/** 变更分类：PATCH */
 	public static final String PATCH = "PATCH";
@@ -88,6 +92,9 @@ public class MappingChangeClassifier {
 
 		// 实体映射和字段映射子表比较
 		classifyEntityMappings(changes, baseVersion.getId(), compareVersion.getId());
+
+		// 关系映射子表比较
+		classifyRelationMappings(changes, baseVersion.getId(), compareVersion.getId());
 
 		return changes;
 	}
@@ -225,6 +232,73 @@ public class MappingChangeClassifier {
 				changes.add(new ChangeRecord(
 						pathPrefix + ".fieldMapping.-" + baseFm.getFieldMappingCode(),
 						baseFm.getFieldMappingName(), "", MAJOR));
+			}
+		}
+	}
+
+	/**
+	 * 比较两个版本下的关系映射子表。
+	 */
+	private void classifyRelationMappings(List<ChangeRecord> changes, Long baseVersionId, Long compareVersionId) {
+		List<OntRelationMapping> baseMappings = relationMappingMapper.selectList(
+				Wrappers.<OntRelationMapping>lambdaQuery()
+						.eq(OntRelationMapping::getMappingVersionId, baseVersionId)
+						.eq(OntRelationMapping::getDelFlag, "0"));
+
+		List<OntRelationMapping> compareMappings = relationMappingMapper.selectList(
+				Wrappers.<OntRelationMapping>lambdaQuery()
+						.eq(OntRelationMapping::getMappingVersionId, compareVersionId)
+						.eq(OntRelationMapping::getDelFlag, "0"));
+
+		Map<String, OntRelationMapping> baseMap = new HashMap<>();
+		for (OntRelationMapping rm : baseMappings) {
+			baseMap.put(rm.getMappingCode(), rm);
+		}
+
+		Map<String, OntRelationMapping> compareMap = new HashMap<>();
+		for (OntRelationMapping rm : compareMappings) {
+			compareMap.put(rm.getMappingCode(), rm);
+		}
+
+		for (OntRelationMapping compareRm : compareMappings) {
+			OntRelationMapping baseRm = baseMap.get(compareRm.getMappingCode());
+			if (baseRm == null) {
+				// 新增关系映射
+				changes.add(new ChangeRecord(
+						"relationMapping.+" + compareRm.getMappingCode(), "",
+						compareRm.getMappingName(), MINOR));
+			}
+			else {
+				String prefix = "relationMapping." + compareRm.getMappingCode();
+				// MAJOR_HIGH_RISK: relationMode 变化
+				compareField(changes, prefix + ".relationMode",
+						baseRm.getRelationMode(), compareRm.getRelationMode(), MAJOR_HIGH_RISK);
+				// MAJOR: object_property_id 变化
+				compareField(changes, prefix + ".objectPropertyId",
+						String.valueOf(baseRm.getObjectPropertyId()),
+						String.valueOf(compareRm.getObjectPropertyId()), MAJOR);
+				// MAJOR_HIGH_RISK: subject/object entity_mapping_id 变化
+				compareField(changes, prefix + ".subjectEntityMappingId",
+						String.valueOf(baseRm.getSubjectEntityMappingId()),
+						String.valueOf(compareRm.getSubjectEntityMappingId()), MAJOR_HIGH_RISK);
+				compareField(changes, prefix + ".objectEntityMappingId",
+						String.valueOf(baseRm.getObjectEntityMappingId()),
+						String.valueOf(compareRm.getObjectEntityMappingId()), MAJOR_HIGH_RISK);
+				// PATCH: 名称、排序
+				compareField(changes, prefix + ".mappingName",
+						baseRm.getMappingName(), compareRm.getMappingName(), PATCH);
+				compareField(changes, prefix + ".syncOrder",
+						String.valueOf(baseRm.getSyncOrder()),
+						String.valueOf(compareRm.getSyncOrder()), PATCH);
+			}
+		}
+
+		// 删除的关系映射
+		for (OntRelationMapping baseRm : baseMappings) {
+			if (!compareMap.containsKey(baseRm.getMappingCode())) {
+				changes.add(new ChangeRecord(
+						"relationMapping.-" + baseRm.getMappingCode(),
+						baseRm.getMappingName(), "", MAJOR));
 			}
 		}
 	}

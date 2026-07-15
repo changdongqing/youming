@@ -8,8 +8,10 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pig4cloud.pig.ontology.mapping.entity.OntEntityMapping;
 import com.pig4cloud.pig.ontology.mapping.entity.OntFieldMapping;
+import com.pig4cloud.pig.ontology.mapping.entity.OntRelationMapping;
 import com.pig4cloud.pig.ontology.mapping.mapper.OntEntityMappingMapper;
 import com.pig4cloud.pig.ontology.mapping.mapper.OntFieldMappingMapper;
+import com.pig4cloud.pig.ontology.mapping.mapper.OntRelationMappingMapper;
 import com.pig4cloud.pig.ontology.mapping.project.entity.OntMappingProject;
 import com.pig4cloud.pig.ontology.mapping.project.entity.OntMappingVersion;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +26,7 @@ import java.util.TreeMap;
  * 映射配置快照构建器（18-03 §6）。
  * <p>
  * 发布时将工程信息、本体绑定和映射子表规范化写入 {@code config_snapshot}。
- * 18-04 起填充实体映射和字段映射子表；关系映射子表待 18-05 后填充。
+ * 18-04 起填充实体映射和字段映射子表；18-05 起填充关系映射子表。
  * <p>
  * 不包含审计字段、凭证、最近作业和 UI 临时坐标。
  *
@@ -40,6 +42,8 @@ public class MappingSnapshotBuilder {
 	private final OntEntityMappingMapper entityMappingMapper;
 
 	private final OntFieldMappingMapper fieldMappingMapper;
+
+	private final OntRelationMappingMapper relationMappingMapper;
 
 	private static final int SNAPSHOT_FORMAT_VERSION = 1;
 
@@ -134,8 +138,37 @@ public class MappingSnapshotBuilder {
 
 			snapshot.put("entityMappings", entityMappingSnapshots);
 			snapshot.put("fieldMappings", fieldMappingSnapshots);
-			// 18-05: 关系映射子表待实现后填充
-			snapshot.put("relationMappings", List.of());
+			// 18-05: 填充关系映射子表
+			List<OntRelationMapping> relationMappings = relationMappingMapper.selectList(
+					Wrappers.<OntRelationMapping>lambdaQuery()
+							.eq(OntRelationMapping::getMappingVersionId, version.getId())
+							.eq(OntRelationMapping::getDelFlag, "0")
+							.orderByAsc(OntRelationMapping::getSyncOrder));
+
+			List<Map<String, Object>> relationMappingSnapshots = new java.util.ArrayList<>();
+			for (OntRelationMapping rm : relationMappings) {
+				Map<String, Object> rmSnapshot = new TreeMap<>();
+				rmSnapshot.put("deleteStrategy", rm.getDeleteStrategy());
+				rmSnapshot.put("enabled", rm.getEnabled());
+				rmSnapshot.put("id", rm.getId());
+				rmSnapshot.put("mappingCode", rm.getMappingCode());
+				rmSnapshot.put("mappingName", rm.getMappingName());
+				rmSnapshot.put("missingTargetPolicy", rm.getMissingTargetPolicy());
+				rmSnapshot.put("objectKeyMapping", rm.getObjectKeyMapping());
+				rmSnapshot.put("objectPropertyId", rm.getObjectPropertyId());
+				rmSnapshot.put("objectEntityMappingId", rm.getObjectEntityMappingId());
+				rmSnapshot.put("ownershipPolicy", rm.getOwnershipPolicy());
+				rmSnapshot.put("relationKeyColumns", rm.getRelationKeyColumns());
+				rmSnapshot.put("relationMode", rm.getRelationMode());
+				rmSnapshot.put("sourceId", rm.getSourceId());
+				rmSnapshot.put("sourceObject", rm.getSourceObject());
+				rmSnapshot.put("sourceSchema", rm.getSourceSchema());
+				rmSnapshot.put("subjectEntityMappingId", rm.getSubjectEntityMappingId());
+				rmSnapshot.put("subjectKeyMapping", rm.getSubjectKeyMapping());
+				rmSnapshot.put("syncOrder", rm.getSyncOrder());
+				relationMappingSnapshots.add(rmSnapshot);
+			}
+			snapshot.put("relationMappings", relationMappingSnapshots);
 
 			// 元数据依赖
 			snapshot.put("metadataDependencies", parseMetadataDependencies(version.getMetadataDependencies()));
