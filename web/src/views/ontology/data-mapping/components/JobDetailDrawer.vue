@@ -66,36 +66,7 @@
 
 				<!-- ==================== 失败记录 ==================== -->
 				<el-divider content-position="left">失败记录</el-divider>
-				<el-form :inline="true" class="mb8">
-					<el-form-item label="状态">
-						<el-select v-model="recordQuery.recordStatus" placeholder="全部" clearable style="width: 140px" @change="loadRecords">
-							<el-option label="失败" value="FAILED" />
-							<el-option label="成功" value="SUCCESS" />
-							<el-option label="跳过" value="SKIPPED" />
-						</el-select>
-					</el-form-item>
-				</el-form>
-				<el-table v-loading="recordLoading" :data="recordList" border size="small">
-					<el-table-column prop="mappingCode" label="映射编码" width="140" show-overflow-tooltip />
-					<el-table-column prop="phase" label="阶段" width="80">
-						<template #default="{ row }">{{ phaseLabel(row.phase) }}</template>
-					</el-table-column>
-					<el-table-column prop="sourceRecordKeyMasked" label="记录键掩码" min-width="160" show-overflow-tooltip />
-					<el-table-column prop="recordAction" label="动作" width="100" />
-					<el-table-column prop="recordStatus" label="状态" width="80" />
-					<el-table-column prop="errorCode" label="错误码" width="120" show-overflow-tooltip />
-					<el-table-column prop="errorMessage" label="错误消息" min-width="200" show-overflow-tooltip />
-					<el-table-column prop="durationMs" label="耗时(ms)" width="90" />
-					<el-table-column prop="createTime" label="时间" width="170" />
-				</el-table>
-				<el-pagination
-					v-model:current-page="recordQuery.current"
-					v-model:page-size="recordQuery.size"
-					:total="recordTotal"
-					layout="total, prev, pager, next"
-					@current-change="loadRecords"
-					class="mt8"
-				/>
+				<JobRecordTable :job-id="jobId" />
 
 				<!-- ==================== 操作 ==================== -->
 				<el-divider content-position="left">操作</el-divider>
@@ -121,12 +92,13 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, onUnmounted } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import { ElMessageBox } from 'element-plus';
 import { useMessage } from '/@/hooks/message';
 import { mappingJobApi } from '/@/api/ontology/data-mapping';
-import type { MappingJobVO, MappingJobRecordVO } from '/@/types/ontology/data-mapping';
+import type { MappingJobVO } from '/@/types/ontology/data-mapping';
 import { jobStatusLabel, jobStatusTagType, runTypeLabel, triggerTypeLabel, phaseLabel, isJobTerminal } from '../utils/mapping-status';
+import JobRecordTable from './JobRecordTable.vue';
 
 const { success: msgSuccess, error: msgError } = useMessage();
 
@@ -135,12 +107,6 @@ const loading = ref(false);
 const jobId = ref(0);
 const job = ref<MappingJobVO | null>(null);
 
-// 失败记录
-const recordLoading = ref(false);
-const recordList = ref<MappingJobRecordVO[]>([]);
-const recordTotal = ref(0);
-const recordQuery = reactive({ recordStatus: '', current: 1, size: 10 });
-
 // 轮询
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -148,12 +114,7 @@ const open = async (id: number) => {
 	visible.value = true;
 	jobId.value = id;
 	job.value = null;
-	recordList.value = [];
-	recordTotal.value = 0;
-	recordQuery.recordStatus = '';
-	recordQuery.current = 1;
 	await loadDetail();
-	await loadRecords();
 };
 
 const loadDetail = async () => {
@@ -171,23 +132,6 @@ const loadDetail = async () => {
 		msgError(e.message || '获取作业详情失败');
 	} finally {
 		loading.value = false;
-	}
-};
-
-const loadRecords = async () => {
-	recordLoading.value = true;
-	try {
-		const { data } = await mappingJobApi.getJobRecords(jobId.value, {
-			recordStatus: recordQuery.recordStatus || undefined,
-			current: recordQuery.current,
-			size: recordQuery.size,
-		});
-		recordList.value = data?.records || [];
-		recordTotal.value = data?.total || 0;
-	} catch (e: any) {
-		msgError(e.message || '获取记录列表失败');
-	} finally {
-		recordLoading.value = false;
 	}
 };
 

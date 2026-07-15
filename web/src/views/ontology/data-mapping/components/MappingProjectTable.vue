@@ -153,26 +153,7 @@
 		</el-dialog>
 
 		<!-- ==================== 调度配置对话框 ==================== -->
-		<el-dialog v-model="scheduleDialogVisible" title="配置调度" width="520px" :close-on-click-modal="false">
-			<el-form :model="scheduleForm" label-width="120px">
-				<el-form-item label="启用调度">
-					<el-switch v-model="scheduleForm.scheduleEnabled" />
-				</el-form-item>
-				<el-form-item label="Cron表达式">
-					<el-input v-model="scheduleForm.scheduleCron" placeholder="如 0 0 2 * * ?" />
-				</el-form-item>
-				<el-form-item label="运行类型">
-					<el-select v-model="scheduleForm.scheduleRunType" placeholder="选择调度运行类型" style="width: 100%">
-						<el-option label="全量" value="FULL" />
-						<el-option label="增量" value="INCREMENTAL" />
-					</el-select>
-				</el-form-item>
-			</el-form>
-			<template #footer>
-				<el-button @click="scheduleDialogVisible = false">取消</el-button>
-				<el-button type="primary" @click="handleSaveSchedule" :loading="scheduleLoading">保存</el-button>
-			</template>
-		</el-dialog>
+		<ScheduleDialog ref="scheduleDialogRef" :project="selectedProject" @success="loadData" />
 	</div>
 </template>
 
@@ -186,6 +167,7 @@ import { mappingProjectApi, mappingJobApi } from '/@/api/ontology/data-mapping';
 import type { MappingProjectVO, MappingProjectQuery, MappingVersionVO } from '/@/types/ontology/data-mapping';
 import { projectStatusLabel, projectStatusTagType, versionStatusLabel, versionStatusTagType } from '../utils/mapping-status';
 import MappingProjectFormDialog from './MappingProjectFormDialog.vue';
+import ScheduleDialog from './ScheduleDialog.vue';
 
 const { success: msgSuccess, error: msgError } = useMessage();
 const router = useRouter();
@@ -202,6 +184,7 @@ const query = reactive<MappingProjectQuery>({
 });
 
 const formDialogRef = ref();
+const scheduleDialogRef = ref();
 
 // 版本历史
 const versionHistoryVisible = ref(false);
@@ -218,15 +201,6 @@ const jobForm = reactive({
 	runType: 'FULL' as 'FULL' | 'INCREMENTAL',
 	dryRun: false,
 	maxErrorRate: 0.1,
-});
-
-// 调度配置
-const scheduleDialogVisible = ref(false);
-const scheduleLoading = ref(false);
-const scheduleForm = reactive({
-	scheduleEnabled: false,
-	scheduleCron: '',
-	scheduleRunType: 'INCREMENTAL' as 'FULL' | 'INCREMENTAL',
 });
 
 const loadData = async () => {
@@ -399,30 +373,7 @@ const handleStartJob = async () => {
 
 const handleSchedule = (row: MappingProjectVO) => {
 	selectedProject.value = row;
-	scheduleForm.scheduleEnabled = row.scheduleEnabled === '1';
-	scheduleForm.scheduleCron = row.scheduleCron || '';
-	scheduleForm.scheduleRunType = (row.scheduleRunType as 'FULL' | 'INCREMENTAL') || 'INCREMENTAL';
-	scheduleDialogVisible.value = true;
-};
-
-const handleSaveSchedule = async () => {
-	if (!selectedProject.value) return;
-	scheduleLoading.value = true;
-	try {
-		await mappingJobApi.updateSchedule(
-			selectedProject.value.id,
-			scheduleForm.scheduleEnabled,
-			scheduleForm.scheduleCron || undefined,
-			scheduleForm.scheduleRunType || undefined
-		);
-		msgSuccess('调度配置成功');
-		scheduleDialogVisible.value = false;
-		loadData();
-	} catch (e: any) {
-		msgError(e.message || '调度配置失败');
-	} finally {
-		scheduleLoading.value = false;
-	}
+	scheduleDialogRef.value?.open(row);
 };
 
 onMounted(loadData);
