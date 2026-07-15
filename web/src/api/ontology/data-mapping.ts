@@ -43,7 +43,7 @@ import type {
 	JobRetryRequest,
 } from '/@/types/ontology/data-mapping';
 
-const BASE = '/ontology/data-mapping';
+const BASE = '/admin/ontology/data-mapping';
 
 // ==================== 数据源 API ====================
 
