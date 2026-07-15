@@ -179,7 +179,7 @@ public class OntologyDataPolicyService {
 
 		return switch (action) {
 			case VIEW -> hasView;
-			case EDIT -> hasEdit;
+			case EDIT, INGEST -> hasEdit;
 			case EXPORT, SPARQL -> hasView;
 		};
 	}

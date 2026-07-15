@@ -7,6 +7,7 @@ package com.pig4cloud.pig.ontology.mapping.ingestion;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.pig4cloud.pig.ontology.mapping.ingestion.entity.OntInstanceValueProvenance;
 import com.pig4cloud.pig.ontology.mapping.ingestion.mapper.OntInstanceValueProvenanceMapper;
+import com.pig4cloud.pig.ontology.mapping.integration.MappingAuditFacade;
 import com.pig4cloud.pig.ontology.security.policy.SecuritySubject;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,8 @@ import org.springframework.stereotype.Component;
 public class MappedValueWriteGuardImpl implements MappedValueWriteGuard {
 
 	private final OntInstanceValueProvenanceMapper valueProvenanceMapper;
+
+	private final MappingAuditFacade auditFacade;
 
 	@Override
 	public void assertWritable(Long dataValueId, SecuritySubject subject, boolean forceOverride) {
@@ -50,8 +53,12 @@ public class MappedValueWriteGuardImpl implements MappedValueWriteGuard {
 			provenance.setProvenanceStatus("OVERRIDDEN");
 			valueProvenanceMapper.updateById(provenance);
 			log.info("受控人工覆盖映射来源值: dataValueId={}, fieldMappingCode={}, subject={}",
-				dataValueId, provenance.getFieldMappingCode(),
-				subject != null ? subject.getUsername() : "system");
+					dataValueId, provenance.getFieldMappingCode(),
+					subject != null ? subject.getUsername() : "system");
+
+			// 审计强制人工覆盖（18-08 §9）
+			auditFacade.auditValueOverride(null, subject, dataValueId,
+					provenance.getFieldMappingCode(), null);
 			return;
 		}
 

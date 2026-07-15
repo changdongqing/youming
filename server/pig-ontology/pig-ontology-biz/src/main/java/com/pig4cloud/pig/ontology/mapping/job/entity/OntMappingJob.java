@@ -108,6 +108,9 @@ public class OntMappingJob extends Model<OntMappingJob> {
 	@Schema(description = "关系数")
 	private Long totalRelations;
 
+	@Schema(description = "安全策略拒绝记录数")
+	private Long securityDeniedCount;
+
 	@Schema(description = "租约持有者")
 	private String leaseOwner;
 

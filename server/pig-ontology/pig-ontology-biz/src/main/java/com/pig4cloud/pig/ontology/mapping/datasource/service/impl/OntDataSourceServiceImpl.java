@@ -25,6 +25,10 @@ import com.pig4cloud.pig.ontology.mapping.datasource.connector.postgresql.Postgr
 import com.pig4cloud.pig.ontology.mapping.datasource.service.OntDataSourceService;
 import com.pig4cloud.pig.ontology.mapping.datasource.vo.DataSourceVO;
 import com.pig4cloud.pig.ontology.mapping.datasource.vo.SourceObjectMetadataVO;
+import com.pig4cloud.pig.ontology.mapping.integration.MappingAuditFacade;
+import com.pig4cloud.pig.ontology.mapping.integration.MappingMetrics;
+import com.pig4cloud.pig.ontology.security.policy.SecuritySubject;
+import com.pig4cloud.pig.ontology.security.policy.SecuritySubjectResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -59,6 +63,12 @@ public class OntDataSourceServiceImpl extends ServiceImpl<OntDataSourceMapper, O
 	private final ConnectorRegistry connectorRegistry;
 
 	private final ObjectMapper objectMapper;
+
+	private final SecuritySubjectResolver securitySubjectResolver;
+
+	private final MappingAuditFacade auditFacade;
+
+	private final MappingMetrics metrics;
 
 	private static final int DEFAULT_TIMEOUT_SECONDS = 5;
 
@@ -137,6 +147,11 @@ public class OntDataSourceServiceImpl extends ServiceImpl<OntDataSourceMapper, O
 		baseMapper.updateById(ds);
 
 		log.info("Created data source: id={}, code={}", ds.getId(), ds.getSourceCode());
+
+		// 审计（18-08 §9）
+		SecuritySubject subject = securitySubjectResolver.resolve();
+		auditFacade.auditDataSourceOperation(null, subject, ds.getId(), "CREATED", "SUCCESS", null, null);
+
 		return toVO(ds);
 	}
 
@@ -187,6 +202,11 @@ public class OntDataSourceServiceImpl extends ServiceImpl<OntDataSourceMapper, O
 		poolManager.invalidateBySourceId(ds.getId());
 
 		log.info("Updated data source: id={}, revision={}", ds.getId(), newRevision);
+
+		// 审计（18-08 §9）
+		SecuritySubject subject = securitySubjectResolver.resolve();
+		auditFacade.auditDataSourceOperation(null, subject, ds.getId(), "UPDATED", "SUCCESS", null, null);
+
 		return toVO(ds);
 	}
 
@@ -240,6 +260,13 @@ public class OntDataSourceServiceImpl extends ServiceImpl<OntDataSourceMapper, O
 			ds.setLastTestAt(LocalDateTime.now());
 			ds.setLastTestErrorCode(DataSourceErrorCode.ONT_DS_003.getCode());
 			baseMapper.updateById(ds);
+
+			// 审计凭证解密失败 + 指标（18-08 §9 §13）
+			SecuritySubject subject = securitySubjectResolver.resolve();
+			auditFacade.auditCredentialFailure(null, subject, id,
+					DataSourceErrorCode.ONT_DS_003.getCode(), null);
+			metrics.recordDataSourceTest("FAILED", ds.getDatabaseType());
+
 			return new ConnectionTestOutcome(false, 0,
 					DataSourceErrorCode.ONT_DS_003.getCode(), DataSourceErrorCode.ONT_DS_003.getMessage());
 		}
@@ -261,6 +288,13 @@ public class OntDataSourceServiceImpl extends ServiceImpl<OntDataSourceMapper, O
 		ds.setLastTestLatencyMs(result.latencyMs());
 		ds.setLastTestErrorCode(result.success() ? null : result.errorCode());
 		baseMapper.updateById(ds);
+
+		// 指标 + 审计（18-08 §9 §13）
+		metrics.recordDataSourceTest(result.success() ? "SUCCESS" : "FAILED", ds.getDatabaseType());
+		SecuritySubject subject = securitySubjectResolver.resolve();
+		auditFacade.auditDataSourceOperation(null, subject, id, "TESTED",
+				result.success() ? "SUCCESS" : "FAILED",
+				result.success() ? null : result.errorCode(), null);
 
 		return new ConnectionTestOutcome(result.success(), result.latencyMs(),
 				result.errorCode(), result.errorMessage());
@@ -297,6 +331,12 @@ public class OntDataSourceServiceImpl extends ServiceImpl<OntDataSourceMapper, O
 		baseMapper.updateById(ds);
 
 		log.info("Updated data source status: id={}, status={}", id, status);
+
+		// 审计（18-08 §9）
+		SecuritySubject subject = securitySubjectResolver.resolve();
+		auditFacade.auditDataSourceOperation(null, subject, id,
+				"ACTIVE".equals(status) ? "ENABLED" : "DISABLED", "SUCCESS", null, null);
+
 		return toVO(ds);
 	}
 
@@ -364,6 +404,12 @@ public class OntDataSourceServiceImpl extends ServiceImpl<OntDataSourceMapper, O
 		baseMapper.updateById(ds);
 
 		log.info("Refreshed metadata: sourceId={}, objects={}", id, objectCount);
+
+		// 指标 + 审计（18-08 §9 §13）
+		metrics.recordMetadataRefreshDuration(java.time.Duration.ofMillis(0));
+		SecuritySubject subject = securitySubjectResolver.resolve();
+		auditFacade.auditDataSourceOperation(null, subject, id, "METADATA_REFRESHED", "SUCCESS", null, null);
+
 		return objectCount;
 	}
 

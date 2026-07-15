@@ -10,12 +10,12 @@ import com.pig4cloud.pig.ontology.entity.OntInstanceDataValue;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntOntologyProject;
 import com.pig4cloud.pig.ontology.event.model.OntologyDomainEvent;
-import com.pig4cloud.pig.ontology.event.model.OntologyEventTypes;
 import com.pig4cloud.pig.ontology.event.service.OntDomainEventPublisher;
 import com.pig4cloud.pig.ontology.mapper.OntEntityInstanceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntInstanceDataValueMapper;
 import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntOntologyProjectMapper;
+import com.pig4cloud.pig.ontology.mapping.integration.MappingEventFactory;
 import com.pig4cloud.pig.ontology.mapping.ingestion.entity.OntInstanceValueProvenance;
 import com.pig4cloud.pig.ontology.mapping.ingestion.entity.OntSourceInstanceBinding;
 import com.pig4cloud.pig.ontology.mapping.ingestion.mapper.OntInstanceValueProvenanceMapper;
@@ -65,6 +65,8 @@ public class OntologyInstanceIngestionServiceImpl implements OntologyInstanceIng
 	private final SourceBindingRepository sourceBindingRepository;
 
 	private final OntDomainEventPublisher eventPublisher;
+
+	private final MappingEventFactory eventFactory;
 
 	private final WorkspaceStatusGuard workspaceStatusGuard;
 
@@ -567,8 +569,9 @@ public class OntologyInstanceIngestionServiceImpl implements OntologyInstanceIng
 	/**
 	 * 写 Outbox 事件。
 	 * <p>
-	 * Payload 只包含实例ID、ontologyId、entityTypeId、mappingProjectId、mappingVersionId、jobId、
-	 * 变更字段ID集合和摘要，不包含字面量明文。
+	 * 通过 {@link MappingEventFactory} 构造载荷最小化的事件，
+	 * payload 只包含实例ID、ontologyId、entityTypeId、mappingProjectId、mappingVersionId、jobId、
+	 * 变更字段ID集合和 sourceRecordKeyHash，不包含字面量明文。
 	 */
 	private void publishInstanceEvent(OntEntityInstance instance, String operation,
 									 IngestionContext ctx, SourceIdentity sourceIdentity,
@@ -578,24 +581,12 @@ public class OntologyInstanceIngestionServiceImpl implements OntologyInstanceIng
 			return;
 		}
 
-		eventPublisher.append(OntologyDomainEvent.builder()
-			.eventType(OntologyEventTypes.ONTOLOGY_INSTANCE_CHANGED)
-			.ontologyId(instance.getOntologyId())
-			.aggregateType("ENTITY_INSTANCE")
-			.aggregateId(instance.getId().toString())
-			.operation(operation)
-			.actorId(ctx != null ? ctx.getRequestedUserId() : null)
-			.traceId(ctx != null ? ctx.getTraceId() : null)
-			.payload(Map.of(
-				"entityTypeId", instance.getRdfTypeId(),
-				"mappingProjectId", sourceIdentity.mappingProjectId() != null
-					? sourceIdentity.mappingProjectId() : 0,
-				"mappingVersionId", sourceIdentity.mappingVersionId() != null
-					? sourceIdentity.mappingVersionId() : 0,
-				"jobId", ctx != null && ctx.getJobId() != null ? ctx.getJobId() : 0,
-				"changedFields", changedFields != null ? changedFields : Set.of()
-			))
-			.build());
+		OntologyDomainEvent event = eventFactory.instanceIngestedEvent(
+				instance.getOntologyId(), instance.getId(), instance.getRdfTypeId(),
+				ctx, sourceIdentity, changedFields, operation);
+		if (event != null) {
+			eventPublisher.append(event);
+		}
 	}
 
 }

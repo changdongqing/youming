@@ -61,4 +61,31 @@ public final class OntologyEventTypes {
 	/** 映射作业取消：安全停止 */
 	public static final String MAPPING_JOB_CANCELLED = "MAPPING_JOB_CANCELLED";
 
+	/** 映射实例摄入完成（18-08 §11.1） */
+	public static final String INSTANCE_INGESTED = "INSTANCE_INGESTED";
+
+	/** 映射实例从源更新（18-08 §11.1） */
+	public static final String INSTANCE_UPDATED_FROM_SOURCE = "INSTANCE_UPDATED_FROM_SOURCE";
+
+	/** 映射实例从源失活（18-08 §11.1） */
+	public static final String INSTANCE_DEACTIVATED_FROM_SOURCE = "INSTANCE_DEACTIVATED_FROM_SOURCE";
+
+	/** 映射来源值人工覆盖（18-08 §11.1） */
+	public static final String MAPPING_VALUE_OVERRIDDEN = "MAPPING_VALUE_OVERRIDDEN";
+
+	/** 映射关系摄入完成（18-08 §11.1） */
+	public static final String RELATION_INGESTED = "RELATION_INGESTED";
+
+	/** 映射关系从源更新（18-08 §11.1） */
+	public static final String RELATION_UPDATED_FROM_SOURCE = "RELATION_UPDATED_FROM_SOURCE";
+
+	/** 映射关系来源移除（18-08 §11.1） */
+	public static final String RELATION_SOURCE_REMOVED = "RELATION_SOURCE_REMOVED";
+
+	/** 映射安全拒绝（18-08 §11.1） */
+	public static final String MAPPING_SECURITY_DENIED = "MAPPING_SECURITY_DENIED";
+
+	/** 映射记录拒绝（18-08 §11.1） */
+	public static final String MAPPING_RECORD_REJECTED = "MAPPING_RECORD_REJECTED";
+
 }

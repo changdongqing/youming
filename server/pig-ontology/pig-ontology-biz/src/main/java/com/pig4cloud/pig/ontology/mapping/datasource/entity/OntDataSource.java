@@ -93,6 +93,9 @@ public class OntDataSource extends Model<OntDataSource> {
 	@Schema(description = "元数据刷新时间")
 	private LocalDateTime metadataRefreshedAt;
 
+	@Schema(description = "凭证最近轮换时间")
+	private LocalDateTime credentialRotatedAt;
+
 	@Schema(description = "安全级别编码")
 	private String securityLevelCode;
 

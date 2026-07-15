@@ -33,6 +33,19 @@ public final class SecurityConstants {
 	public static final String RESOURCE_OBJECT_PROPERTY = "OBJECT_PROPERTY";
 
 	/**
+	 * 映射模块资源类型（18-08 §4）。
+	 */
+	public static final String RESOURCE_DATA_SOURCE = "DATA_SOURCE";
+
+	public static final String RESOURCE_MAPPING_PROJECT = "MAPPING_PROJECT";
+
+	public static final String RESOURCE_MAPPING_VERSION = "MAPPING_VERSION";
+
+	public static final String RESOURCE_MAPPING_JOB = "MAPPING_JOB";
+
+	public static final String RESOURCE_ENTITY_INSTANCE = "ENTITY_INSTANCE";
+
+	/**
 	 * 工程 ACL 访问级别。
 	 */
 	public static final String ACL_VIEW = "VIEW";
@@ -59,5 +72,18 @@ public final class SecurityConstants {
 	 * 缓存 TTL（秒）。
 	 */
 	public static final long CACHE_POLICY_TTL_SECONDS = 300;
+
+	/**
+	 * 映射高风险审批操作类型（18-08 §10）。
+	 */
+	public static final String OP_MAPPING_PUBLISH_IRI_CHANGE = "MAPPING_PUBLISH_IRI_CHANGE";
+
+	public static final String OP_MAPPING_ENABLE_SOFT_DELETE = "MAPPING_ENABLE_SOFT_DELETE";
+
+	public static final String OP_MAPPING_RESET_CURSOR = "MAPPING_RESET_CURSOR";
+
+	public static final String OP_MAPPING_FORCE_DELETE_INSTANCE = "MAPPING_FORCE_DELETE_INSTANCE";
+
+	public static final String OP_MAPPING_CREDENTIAL_ROTATE = "MAPPING_CREDENTIAL_ROTATE";
 
 }

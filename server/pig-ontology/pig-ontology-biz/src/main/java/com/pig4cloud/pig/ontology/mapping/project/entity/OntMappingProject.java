@@ -81,6 +81,9 @@ public class OntMappingProject extends Model<OntMappingProject> {
 	@Schema(description = "最近作业ID")
 	private Long lastJobId;
 
+	@Schema(description = "最近安全拒绝时间")
+	private LocalDateTime lastSecurityDenialAt;
+
 	@Schema(description = "备注")
 	private String remarks;
 

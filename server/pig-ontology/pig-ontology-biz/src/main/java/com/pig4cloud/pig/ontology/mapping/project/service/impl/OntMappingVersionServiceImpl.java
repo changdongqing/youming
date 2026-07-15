@@ -9,8 +9,6 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.pig4cloud.pig.ontology.entity.OntOntologyProject;
-import com.pig4cloud.pig.ontology.event.model.OntologyDomainEvent;
-import com.pig4cloud.pig.ontology.event.model.OntologyEventTypes;
 import com.pig4cloud.pig.ontology.event.service.OntDomainEventPublisher;
 import com.pig4cloud.pig.ontology.mapping.project.MappingErrorCode;
 import com.pig4cloud.pig.ontology.mapping.project.diff.MappingVersionDiffService;
@@ -25,6 +23,9 @@ import com.pig4cloud.pig.ontology.mapping.project.snapshot.MappingSnapshotCanoni
 import com.pig4cloud.pig.ontology.mapping.project.support.MappingSemVerValidator;
 import com.pig4cloud.pig.ontology.mapping.project.vo.MappingVersionDiffVO;
 import com.pig4cloud.pig.ontology.mapping.project.vo.MappingVersionVO;
+import com.pig4cloud.pig.ontology.mapping.integration.MappingAuditFacade;
+import com.pig4cloud.pig.ontology.mapping.integration.MappingEventFactory;
+import com.pig4cloud.pig.ontology.mapping.integration.MappingSecurityGuard;
 import com.pig4cloud.pig.ontology.mapping.validation.MappingValidationService;
 import com.pig4cloud.pig.ontology.mapping.validation.entity.OntMappingValidationIssue;
 import com.pig4cloud.pig.ontology.mapping.validation.entity.OntMappingValidationReport;
@@ -81,6 +82,12 @@ public class OntMappingVersionServiceImpl extends ServiceImpl<OntMappingVersionM
 	private final OntMappingValidationReportMapper validationReportMapper;
 
 	private final OntMappingValidationIssueMapper validationIssueMapper;
+
+	private final MappingSecurityGuard securityGuard;
+
+	private final MappingAuditFacade auditFacade;
+
+	private final MappingEventFactory eventFactory;
 
 	// ==================== 查询 ====================
 
@@ -249,21 +256,16 @@ public class OntMappingVersionServiceImpl extends ServiceImpl<OntMappingVersionM
 		}
 		projectMapper.updateById(project);
 
-		// 10. 写 Outbox MAPPING_VERSION_PUBLISHED 事件
-		eventPublisher.append(OntologyDomainEvent.builder()
-				.eventType(OntologyEventTypes.MAPPING_VERSION_PUBLISHED)
-				.ontologyId(project.getOntologyId())
-				.aggregateType("MAPPING_VERSION")
-				.aggregateId(id.toString())
-				.operation("PUBLISHED")
-				.payload(Map.of(
-						"mappingProjectId", project.getId(),
-						"versionNumber", version.getVersionNumber(),
-						"configHash", configHash))
-				.build());
+		// 10. 写 Outbox MAPPING_VERSION_PUBLISHED 事件（通过事件工厂，载荷最小化）
+		eventPublisher.append(eventFactory.versionPublishedEvent(
+				project.getOntologyId(), project.getId(), id, configHash, null, null));
 
 		log.info("Published mapping version: id={}, versionNumber={}, configHash={}",
 				id, version.getVersionNumber(), configHash);
+
+		// 11. 安全审计（18-08 §9）
+		auditFacade.auditMappingProject(project.getOntologyId(), null, project.getId(),
+				id, "PUBLISHED", "SUCCESS", null, null);
 
 		OntMappingVersion publishedVersion = baseMapper.selectById(id);
 		return toVO(publishedVersion, false);
@@ -297,6 +299,12 @@ public class OntMappingVersionServiceImpl extends ServiceImpl<OntMappingVersionM
 		}
 
 		log.info("Retired mapping version: id={}", id);
+
+		// 安全审计（18-08 §9）
+		if (project != null) {
+			auditFacade.auditMappingProject(project.getOntologyId(), null, project.getId(),
+					id, "RETIRED", "SUCCESS", null, null);
+		}
 		version = baseMapper.selectById(id);
 		return toVO(version, false);
 	}

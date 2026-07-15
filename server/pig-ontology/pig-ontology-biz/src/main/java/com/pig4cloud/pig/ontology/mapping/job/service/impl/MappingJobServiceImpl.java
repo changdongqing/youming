@@ -13,7 +13,6 @@ import com.pig4cloud.pig.common.security.service.PigUser;
 import com.pig4cloud.pig.common.security.util.SecurityUtils;
 import com.pig4cloud.pig.ontology.entity.OntNamespace;
 import com.pig4cloud.pig.ontology.entity.OntOntologyProject;
-import com.pig4cloud.pig.ontology.event.model.OntologyDomainEvent;
 import com.pig4cloud.pig.ontology.event.model.OntologyEventTypes;
 import com.pig4cloud.pig.ontology.event.service.OntDomainEventPublisher;
 import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
@@ -62,6 +61,12 @@ import com.pig4cloud.pig.ontology.mapping.project.entity.OntMappingProject;
 import com.pig4cloud.pig.ontology.mapping.project.entity.OntMappingVersion;
 import com.pig4cloud.pig.ontology.mapping.project.mapper.OntMappingProjectMapper;
 import com.pig4cloud.pig.ontology.mapping.project.mapper.OntMappingVersionMapper;
+import com.pig4cloud.pig.ontology.mapping.integration.MappingAuditFacade;
+import com.pig4cloud.pig.ontology.mapping.integration.MappingEventFactory;
+import com.pig4cloud.pig.ontology.mapping.integration.MappingMetrics;
+import com.pig4cloud.pig.ontology.mapping.integration.MappingSecurityGuard;
+import com.pig4cloud.pig.ontology.mapping.integration.MappingTraceSupport;
+import com.pig4cloud.pig.ontology.security.policy.SecuritySubject;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -157,6 +162,16 @@ public class MappingJobServiceImpl extends ServiceImpl<OntMappingJobMapper, OntM
 
 	private final ObjectMapper objectMapper;
 
+	private final MappingSecurityGuard securityGuard;
+
+	private final MappingAuditFacade auditFacade;
+
+	private final MappingEventFactory eventFactory;
+
+	private final MappingMetrics metrics;
+
+	private final MappingTraceSupport traceSupport;
+
 	// ==================== 创建作业 ====================
 
 	@Override
@@ -187,10 +202,14 @@ public class MappingJobServiceImpl extends ServiceImpl<OntMappingJobMapper, OntM
 		Long ontologyVersionId = ontologyProject != null ? ontologyProject.getCurrentVersionId() : null;
 		Long workspaceRevision = ontologyProject != null ? ontologyProject.getWorkspaceRevision() : 0L;
 
+		// 4.1 安全守卫校验（18-08 §3.2 执行权限）— SYSTEM 主体被拒绝
+		SecuritySubject subject = securityGuard.assertCanExecute(project, version);
+
 		// 请求人信息
 		String requestedBy = getCurrentUsername();
 		Long requestedUserId = getCurrentUserId();
-		String authSnapshot = buildAuthorizationSnapshot();
+		String authSnapshot = securityGuard.buildAuthorizationSnapshot(subject, project.getOntologyId(),
+				version.getConfigHash());
 
 		// 5. 创建作业记录
 		OntMappingJob job = new OntMappingJob();
@@ -215,12 +234,18 @@ public class MappingJobServiceImpl extends ServiceImpl<OntMappingJobMapper, OntM
 		job.setTotalSkipped(0L);
 		job.setTotalFailed(0L);
 		job.setTotalRelations(0L);
+		job.setSecurityDeniedCount(0L);
 		job.setCancelRequested("0");
 		job.setTraceId(java.util.UUID.randomUUID().toString());
 
 		baseMapper.insert(job);
 		log.info("Created mapping job: id={}, projectId={}, versionId={}, runType={}",
 				job.getId(), project.getId(), versionId, runType);
+
+		// 6. 审计 + 指标（18-08 §9 §13）
+		auditFacade.auditMappingJob(project.getOntologyId(), subject, project.getId(), versionId,
+				job.getId(), "CREATED", "SUCCESS", null, job.getTraceId());
+		metrics.recordJobTotal(runType, "QUEUED");
 
 		// 6. 同步执行（PREVIEW 不在此执行）
 		if (!"PREVIEW".equals(runType)) {
@@ -240,6 +265,23 @@ public class MappingJobServiceImpl extends ServiceImpl<OntMappingJobMapper, OntM
 			throw new IllegalArgumentException(MappingJobErrorCode.ONT_MAP_023.getMessage());
 		}
 
+		// 0. 授权快照校验（18-08 §6.1 步骤6）— 策略 revision 变化则失败关闭
+		OntMappingProject project0 = projectMapper.selectById(job.getMappingProjectId());
+		if (project0 != null && !securityGuard.validateAuthorizationSnapshot(
+				job.getAuthorizationSnapshot(), project0.getOntologyId())) {
+			log.warn("Authorization snapshot validation failed for job {}, denying (fail-closed)", jobId);
+			finishJob(jobId, "QUEUED", "FAILED",
+					MappingJobErrorCode.ONT_MAP_029.getCode(), "授权快照失效",
+					new JobCounters(), cursorCodec.decode(job.getCursorBefore()));
+			metrics.recordJobTotal(job.getRunType(), "FAILED");
+			return;
+		}
+
+		// 0.1 开始 Trace span（18-08 §14）
+		long startTime = System.nanoTime();
+		traceSupport.startJobSpan(job.getTraceId(), jobId, job.getMappingProjectId(),
+				job.getMappingVersionId());
+
 		// 1. 领取租约：CAS QUEUED/RECOVERING → STARTING
 		String leaseOwner = buildLeaseOwner();
 		LocalDateTime now = LocalDateTime.now();
@@ -247,6 +289,7 @@ public class MappingJobServiceImpl extends ServiceImpl<OntMappingJobMapper, OntM
 		int acquired = baseMapper.acquireLease(jobId, leaseOwner, leaseUntil, now, now);
 		if (acquired == 0) {
 			log.warn("Failed to acquire lease for job {}, may already be running", jobId);
+			traceSupport.clearSpan();
 			return;
 		}
 
@@ -255,6 +298,7 @@ public class MappingJobServiceImpl extends ServiceImpl<OntMappingJobMapper, OntM
 		try {
 			// 2. 发 STARTED 事件
 			publishEvent(job, OntologyEventTypes.MAPPING_JOB_STARTED, "STARTED");
+			metrics.recordJobTotal(job.getRunType(), "STARTED");
 
 			// 3. CAS: STARTING → RUNNING
 			baseMapper.casUpdateStatus(jobId, "STARTING", "RUNNING");
@@ -289,6 +333,9 @@ public class MappingJobServiceImpl extends ServiceImpl<OntMappingJobMapper, OntM
 						MappingJobErrorCode.ONT_MAP_028.getCode(),
 						MappingJobErrorCode.ONT_MAP_028.getMessage(), counters, cursor);
 				publishEvent(job, OntologyEventTypes.MAPPING_JOB_CANCELLED, "CANCELLED");
+				metrics.recordJobTotal(job.getRunType(), "CANCELLED");
+				auditFacade.auditMappingJob(project.getOntologyId(), null, project.getId(),
+						version.getId(), jobId, "CANCELLED", "SUCCESS", null, job.getTraceId());
 				return;
 			}
 
@@ -313,6 +360,9 @@ public class MappingJobServiceImpl extends ServiceImpl<OntMappingJobMapper, OntM
 			else {
 				publishEvent(job, OntologyEventTypes.MAPPING_JOB_FAILED, finalStatus);
 			}
+			metrics.recordJobTotal(job.getRunType(), finalStatus);
+			auditFacade.auditMappingJob(project.getOntologyId(), null, project.getId(),
+					version.getId(), jobId, finalStatus, "SUCCESS", errorCode, job.getTraceId());
 
 			log.info("Job {} finished: status={}, read={}, created={}, updated={}, failed={}",
 					jobId, finalStatus, counters.totalRead, counters.totalCreated,
@@ -320,12 +370,26 @@ public class MappingJobServiceImpl extends ServiceImpl<OntMappingJobMapper, OntM
 
 		}
 		catch (Exception e) {
-			log.error("Job {} execution failed: {}", jobId, e.getMessage(), e);
+			String sanitized = traceSupport.sanitizeLogMessage(e.getMessage());
+			log.error("Job {} execution failed: {}", jobId, sanitized, e);
 			finishJob(jobId, "RUNNING", "FAILED",
-					MappingJobErrorCode.ONT_MAP_029.getCode(), truncate(e.getMessage(), 500),
+					MappingJobErrorCode.ONT_MAP_029.getCode(), truncate(sanitized, 500),
 					new JobCounters(), cursorCodec.decode(job.getCursorAfter()));
 			job = baseMapper.selectById(jobId);
 			publishEvent(job, OntologyEventTypes.MAPPING_JOB_FAILED, "FAILED");
+			metrics.recordJobTotal(job.getRunType(), "FAILED");
+			OntMappingProject errProject = projectMapper.selectById(job.getMappingProjectId());
+			if (errProject != null) {
+				auditFacade.auditMappingJob(errProject.getOntologyId(), null, errProject.getId(),
+						job.getMappingVersionId(), jobId, "FAILED", "FAILED",
+						MappingJobErrorCode.ONT_MAP_029.getCode(), job.getTraceId());
+			}
+		}
+		finally {
+			// 记录作业耗时（18-08 §13）
+			metrics.recordJobDuration(job.getRunType(),
+					java.time.Duration.ofNanos(System.nanoTime() - startTime));
+			traceSupport.clearSpan();
 		}
 	}
 
@@ -1293,18 +1357,7 @@ public class MappingJobServiceImpl extends ServiceImpl<OntMappingJobMapper, OntM
 
 	private void publishEvent(OntMappingJob job, String eventType, String operation) {
 		try {
-			eventPublisher.append(OntologyDomainEvent.builder()
-					.eventType(eventType)
-					.aggregateType("MAPPING_JOB")
-					.aggregateId(job.getId().toString())
-					.operation(operation)
-					.payload(Map.of(
-							"jobId", job.getId(),
-							"projectId", job.getMappingProjectId(),
-							"versionId", job.getMappingVersionId(),
-							"runType", job.getRunType(),
-							"status", job.getJobStatus()))
-					.build());
+			eventPublisher.append(eventFactory.jobLifecycleEvent(job, eventType, operation));
 		}
 		catch (Exception e) {
 			log.warn("Failed to publish event for job {}: {}", job.getId(), e.getMessage());
@@ -1402,24 +1455,6 @@ public class MappingJobServiceImpl extends ServiceImpl<OntMappingJobMapper, OntM
 		catch (Exception e) {
 			throw new IllegalArgumentException("Failed to build JDBC URL", e);
 		}
-	}
-
-	private String buildAuthorizationSnapshot() {
-		try {
-			PigUser user = SecurityUtils.getUser();
-			if (user != null) {
-				Map<String, Object> snapshot = new LinkedHashMap<>();
-				snapshot.put("username", user.getUsername());
-				snapshot.put("userId", user.getId());
-				snapshot.put("roleIds", user.getRoleIds());
-				snapshot.put("deptId", user.getDeptId());
-				return objectMapper.writeValueAsString(snapshot);
-			}
-		}
-		catch (Exception e) {
-			// 安全上下文不可用时回退
-		}
-		return "{}";
 	}
 
 	private String getCurrentUsername() {
