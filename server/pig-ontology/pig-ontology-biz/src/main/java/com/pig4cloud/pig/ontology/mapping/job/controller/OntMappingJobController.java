@@ -35,6 +35,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @SecurityRequirement(name = HttpHeaders.AUTHORIZATION)
 @Tag(name = "映射作业管理")
+@RequestMapping("/ontology/data-mapping")
 public class OntMappingJobController {
 
 	private final MappingJobService jobService;
