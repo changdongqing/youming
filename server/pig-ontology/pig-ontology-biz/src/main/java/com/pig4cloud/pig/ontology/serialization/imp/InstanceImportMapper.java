@@ -231,6 +231,9 @@ public class InstanceImportMapper {
 		if (datatypeUri.contains("boolean")) {
 			return "BOOLEAN";
 		}
+		if (datatypeUri.contains("dateTime")) {
+			return "DATETIME";
+		}
 		if (datatypeUri.contains("date")) {
 			return "DATE";
 		}

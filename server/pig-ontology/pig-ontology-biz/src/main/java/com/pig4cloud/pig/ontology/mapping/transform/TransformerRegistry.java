@@ -85,9 +85,9 @@ public class TransformerRegistry {
 				"""
 				{"trueValues":["true","1","yes"],"falseValues":["false","0","no"]}""");
 
-		register("DATE_FORMAT", "日期时间转目标 DATE 词法值",
+		register("DATE_FORMAT", "日期时间转目标 DATE/DATETIME 词法值",
 				List.of("DATE", "TIMESTAMP", "TEXT", "VARCHAR"),
-				List.of("DATE", "STRING"),
+				List.of("DATE", "DATETIME", "STRING"),
 				"""
 				{"outputFormat":"yyyyMMdd"}""");
 

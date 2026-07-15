@@ -1,0 +1,479 @@
+{
+  "templateCode": "upms-organization-v1",
+  "templateName": "UPMS组织账号映射模板",
+  "description": "youming UPMS用户/部门/岗位→组织账号扩展本体映射模板，首个自举验证场景。需选择已配置的PostgreSQL数据源后创建DRAFT映射工程。",
+  "version": "1.0.0",
+  "namespacePrefix": "ymorg",
+  "namespaceId": 930200,
+  "extensionModuleId": 939002,
+  "ontologyId": 935001,
+  "excludedColumns": [
+    "password", "salt", "wx_openid", "mini_openid", "qq_openid",
+    "gitee_login", "osc_id", "wx_cp_userid", "wx_ding_userid",
+    "password_expire_flag", "password_modify_time", "avatar"
+  ],
+  "entityMappings": [
+    {
+      "mappingCode": "DEPARTMENT",
+      "mappingName": "部门实体映射",
+      "sourceSchema": "public",
+      "sourceObject": "sys_dept",
+      "sourceObjectType": "TABLE",
+      "targetEntityTypeCode": "OrganizationalUnit",
+      "targetEntityTypeId": 942003,
+      "targetNamespaceId": 930200,
+      "keyColumns": ["dept_id"],
+      "iriTemplate": "organization/{dept_id|url}",
+      "labelTemplate": "{name}",
+      "filter": null,
+      "incrementalColumn": "update_time",
+      "incrementalType": "TIMESTAMP",
+      "sourceDeleteFlagColumn": "del_flag",
+      "sourceDeleteValues": ["1"],
+      "deleteStrategy": "MARK_INACTIVE",
+      "inactivePropertyId": 954017,
+      "inactiveLiteralValue": "INACTIVE",
+      "conflictPolicy": "SOURCE_WINS",
+      "syncOrder": 10,
+      "fieldMappings": [
+        {
+          "fieldMappingCode": "DEPT_EXTERNAL_SYSTEM",
+          "targetDataPropertyId": 954001,
+          "targetDataPropertyName": "externalSystem",
+          "sourceKind": "CONSTANT",
+          "constantValue": "YOU_MING_UPMS",
+          "constantLiteralType": "STRING",
+          "transformer": "IDENTITY",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 1
+        },
+        {
+          "fieldMappingCode": "DEPT_EXTERNAL_ID",
+          "targetDataPropertyId": 954002,
+          "targetDataPropertyName": "externalId",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "dept_id",
+          "transformer": "TO_STRING",
+          "nullHandling": "REJECT_NULL",
+          "sortOrder": 2
+        },
+        {
+          "fieldMappingCode": "DEPT_NAME",
+          "targetDataPropertyId": 954011,
+          "targetDataPropertyName": "organizationName",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "name",
+          "transformer": "TRIM",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 3
+        },
+        {
+          "fieldMappingCode": "DEPT_SORT_ORDER",
+          "targetDataPropertyId": 954012,
+          "targetDataPropertyName": "organizationSortOrder",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "sort_order",
+          "transformer": "TO_INTEGER",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 4
+        },
+        {
+          "fieldMappingCode": "DEPT_CREATED_AT",
+          "targetDataPropertyId": 954003,
+          "targetDataPropertyName": "createdAt",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "create_time",
+          "transformer": "DATE_FORMAT",
+          "transformerParams": "{\"outputFormat\":\"yyyy-MM-dd'T'HH:mm:ss\"}",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 5
+        },
+        {
+          "fieldMappingCode": "DEPT_UPDATED_AT",
+          "targetDataPropertyId": 954004,
+          "targetDataPropertyName": "updatedAt",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "update_time",
+          "transformer": "DATE_FORMAT",
+          "transformerParams": "{\"outputFormat\":\"yyyy-MM-dd'T'HH:mm:ss\"}",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 6
+        },
+        {
+          "fieldMappingCode": "DEPT_LIFECYCLE",
+          "targetDataPropertyId": 954017,
+          "targetDataPropertyName": "lifecycleStatus",
+          "sourceKind": "CONSTANT",
+          "constantValue": "ACTIVE",
+          "constantLiteralType": "STRING",
+          "transformer": "IDENTITY",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 7
+        }
+      ]
+    },
+    {
+      "mappingCode": "POSITION",
+      "mappingName": "岗位实体映射",
+      "sourceSchema": "public",
+      "sourceObject": "sys_post",
+      "sourceObjectType": "TABLE",
+      "targetEntityTypeCode": "Position",
+      "targetEntityTypeId": 942004,
+      "targetNamespaceId": 930200,
+      "keyColumns": ["post_id"],
+      "iriTemplate": "position/{post_id|url}",
+      "labelTemplate": "{post_name}",
+      "filter": null,
+      "incrementalColumn": "update_time",
+      "incrementalType": "TIMESTAMP",
+      "sourceDeleteFlagColumn": "del_flag",
+      "sourceDeleteValues": ["1", "-1"],
+      "deleteStrategy": "MARK_INACTIVE",
+      "inactivePropertyId": 954017,
+      "inactiveLiteralValue": "INACTIVE",
+      "conflictPolicy": "SOURCE_WINS",
+      "syncOrder": 20,
+      "fieldMappings": [
+        {
+          "fieldMappingCode": "POS_EXTERNAL_SYSTEM",
+          "targetDataPropertyId": 954001,
+          "targetDataPropertyName": "externalSystem",
+          "sourceKind": "CONSTANT",
+          "constantValue": "YOU_MING_UPMS",
+          "constantLiteralType": "STRING",
+          "transformer": "IDENTITY",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 1
+        },
+        {
+          "fieldMappingCode": "POS_EXTERNAL_ID",
+          "targetDataPropertyId": 954002,
+          "targetDataPropertyName": "externalId",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "post_id",
+          "transformer": "TO_STRING",
+          "nullHandling": "REJECT_NULL",
+          "sortOrder": 2
+        },
+        {
+          "fieldMappingCode": "POS_CODE",
+          "targetDataPropertyId": 954013,
+          "targetDataPropertyName": "positionCode",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "post_code",
+          "transformer": "TRIM",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 3
+        },
+        {
+          "fieldMappingCode": "POS_NAME",
+          "targetDataPropertyId": 954014,
+          "targetDataPropertyName": "positionName",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "post_name",
+          "transformer": "TRIM",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 4
+        },
+        {
+          "fieldMappingCode": "POS_DESC",
+          "targetDataPropertyId": 954015,
+          "targetDataPropertyName": "positionDescription",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "remark",
+          "transformer": "TRIM",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 5
+        },
+        {
+          "fieldMappingCode": "POS_SORT",
+          "targetDataPropertyId": 954016,
+          "targetDataPropertyName": "positionSortOrder",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "post_sort",
+          "transformer": "TO_INTEGER",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 6
+        },
+        {
+          "fieldMappingCode": "POS_CREATED_AT",
+          "targetDataPropertyId": 954003,
+          "targetDataPropertyName": "createdAt",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "create_time",
+          "transformer": "DATE_FORMAT",
+          "transformerParams": "{\"outputFormat\":\"yyyy-MM-dd'T'HH:mm:ss\"}",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 7
+        },
+        {
+          "fieldMappingCode": "POS_UPDATED_AT",
+          "targetDataPropertyId": 954004,
+          "targetDataPropertyName": "updatedAt",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "update_time",
+          "transformer": "DATE_FORMAT",
+          "transformerParams": "{\"outputFormat\":\"yyyy-MM-dd'T'HH:mm:ss\"}",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 8
+        },
+        {
+          "fieldMappingCode": "POS_LIFECYCLE",
+          "targetDataPropertyId": 954017,
+          "targetDataPropertyName": "lifecycleStatus",
+          "sourceKind": "CONSTANT",
+          "constantValue": "ACTIVE",
+          "constantLiteralType": "STRING",
+          "transformer": "IDENTITY",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 9
+        }
+      ]
+    },
+    {
+      "mappingCode": "USER_ACCOUNT",
+      "mappingName": "用户账号实体映射",
+      "sourceSchema": "public",
+      "sourceObject": "sys_user",
+      "sourceObjectType": "TABLE",
+      "targetEntityTypeCode": "UserAccount",
+      "targetEntityTypeId": 942002,
+      "targetNamespaceId": 930200,
+      "keyColumns": ["user_id"],
+      "iriTemplate": "user-account/{user_id|url}",
+      "labelTemplate": "{name}",
+      "filter": null,
+      "incrementalColumn": "update_time",
+      "incrementalType": "TIMESTAMP",
+      "sourceDeleteFlagColumn": "del_flag",
+      "sourceDeleteValues": ["1"],
+      "deleteStrategy": "MARK_INACTIVE",
+      "inactivePropertyId": 954017,
+      "inactiveLiteralValue": "INACTIVE",
+      "conflictPolicy": "SOURCE_WINS",
+      "syncOrder": 30,
+      "fieldMappings": [
+        {
+          "fieldMappingCode": "USER_EXTERNAL_SYSTEM",
+          "targetDataPropertyId": 954001,
+          "targetDataPropertyName": "externalSystem",
+          "sourceKind": "CONSTANT",
+          "constantValue": "YOU_MING_UPMS",
+          "constantLiteralType": "STRING",
+          "transformer": "IDENTITY",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 1
+        },
+        {
+          "fieldMappingCode": "USER_EXTERNAL_ID",
+          "targetDataPropertyId": 954002,
+          "targetDataPropertyName": "externalId",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "user_id",
+          "transformer": "TO_STRING",
+          "nullHandling": "REJECT_NULL",
+          "sortOrder": 2
+        },
+        {
+          "fieldMappingCode": "USER_USERNAME",
+          "targetDataPropertyId": 954005,
+          "targetDataPropertyName": "username",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "username",
+          "transformer": "TRIM",
+          "nullHandling": "REJECT_NULL",
+          "sortOrder": 3
+        },
+        {
+          "fieldMappingCode": "USER_DISPLAY_NAME",
+          "targetDataPropertyId": 954006,
+          "targetDataPropertyName": "displayName",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "name",
+          "transformer": "TRIM",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 4
+        },
+        {
+          "fieldMappingCode": "USER_NICKNAME",
+          "targetDataPropertyId": 954007,
+          "targetDataPropertyName": "nickname",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "nickname",
+          "transformer": "TRIM",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 5
+        },
+        {
+          "fieldMappingCode": "USER_ACCOUNT_STATUS",
+          "targetDataPropertyId": 954008,
+          "targetDataPropertyName": "accountStatus",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "lock_flag",
+          "transformer": "ENUM_MAP",
+          "transformerParams": "{\"entries\":{\"0\":\"ACTIVE\",\"9\":\"LOCKED\"},\"unknownPolicy\":\"REJECT\",\"unknownValue\":null}",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 6
+        },
+        {
+          "fieldMappingCode": "USER_EMAIL",
+          "targetDataPropertyId": 954009,
+          "targetDataPropertyName": "email",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "email",
+          "transformer": "TRIM",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 7
+        },
+        {
+          "fieldMappingCode": "USER_PHONE",
+          "targetDataPropertyId": 954010,
+          "targetDataPropertyName": "phone",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "phone",
+          "transformer": "TRIM",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 8
+        },
+        {
+          "fieldMappingCode": "USER_CREATED_AT",
+          "targetDataPropertyId": 954003,
+          "targetDataPropertyName": "createdAt",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "create_time",
+          "transformer": "DATE_FORMAT",
+          "transformerParams": "{\"outputFormat\":\"yyyy-MM-dd'T'HH:mm:ss\"}",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 9
+        },
+        {
+          "fieldMappingCode": "USER_UPDATED_AT",
+          "targetDataPropertyId": 954004,
+          "targetDataPropertyName": "updatedAt",
+          "sourceKind": "COLUMN",
+          "sourceColumn": "update_time",
+          "transformer": "DATE_FORMAT",
+          "transformerParams": "{\"outputFormat\":\"yyyy-MM-dd'T'HH:mm:ss\"}",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 10
+        },
+        {
+          "fieldMappingCode": "USER_LIFECYCLE",
+          "targetDataPropertyId": 954017,
+          "targetDataPropertyName": "lifecycleStatus",
+          "sourceKind": "CONSTANT",
+          "constantValue": "ACTIVE",
+          "constantLiteralType": "STRING",
+          "transformer": "IDENTITY",
+          "nullHandling": "SKIP_NULL",
+          "sortOrder": 11
+        }
+      ]
+    }
+  ],
+  "relationMappings": [
+    {
+      "mappingCode": "DEPARTMENT_PARENT",
+      "mappingName": "部门父子关系",
+      "relationMode": "SELF_REFERENCE",
+      "objectPropertyId": 962001,
+      "objectPropertyName": "parentOrganizationUnit",
+      "subjectEntityMappingCode": "DEPARTMENT",
+      "objectEntityMappingCode": "DEPARTMENT",
+      "sourceSchema": "public",
+      "sourceObject": "sys_dept",
+      "subjectKeyMapping": {
+        "subjectKeyColumn": "dept_id",
+        "sourceColumn": "dept_id"
+      },
+      "objectKeyMapping": {
+        "objectKeyColumn": "dept_id",
+        "sourceColumn": "parent_id"
+      },
+      "relationKeyColumns": ["dept_id"],
+      "filter": "del_flag = '0' AND parent_id IS NOT NULL AND parent_id > 0",
+      "missingTargetPolicy": "PENDING",
+      "deleteStrategy": "REMOVE_ASSERTION",
+      "ownershipPolicy": "SOURCE_WINS",
+      "syncOrder": 100
+    },
+    {
+      "mappingCode": "USER_PRIMARY_DEPARTMENT",
+      "mappingName": "用户主部门关系",
+      "relationMode": "FOREIGN_KEY",
+      "objectPropertyId": 962002,
+      "objectPropertyName": "primaryDepartment",
+      "subjectEntityMappingCode": "USER_ACCOUNT",
+      "objectEntityMappingCode": "DEPARTMENT",
+      "sourceSchema": "public",
+      "sourceObject": "sys_user",
+      "subjectKeyMapping": {
+        "subjectKeyColumn": "user_id",
+        "sourceColumn": "user_id"
+      },
+      "objectKeyMapping": {
+        "objectKeyColumn": "dept_id",
+        "sourceColumn": "dept_id"
+      },
+      "relationKeyColumns": ["user_id"],
+      "filter": "del_flag = '0' AND dept_id IS NOT NULL AND dept_id > 0",
+      "missingTargetPolicy": "PENDING",
+      "deleteStrategy": "REMOVE_ASSERTION",
+      "ownershipPolicy": "SOURCE_WINS",
+      "syncOrder": 110
+    },
+    {
+      "mappingCode": "USER_DEPARTMENT",
+      "mappingName": "用户多部门关系",
+      "relationMode": "JOIN_TABLE",
+      "objectPropertyId": 962003,
+      "objectPropertyName": "memberOfDepartment",
+      "subjectEntityMappingCode": "USER_ACCOUNT",
+      "objectEntityMappingCode": "DEPARTMENT",
+      "sourceSchema": "public",
+      "sourceObject": "sys_user_dept",
+      "subjectKeyMapping": {
+        "subjectKeyColumn": "user_id",
+        "sourceColumn": "user_id"
+      },
+      "objectKeyMapping": {
+        "objectKeyColumn": "dept_id",
+        "sourceColumn": "dept_id"
+      },
+      "relationKeyColumns": ["user_id", "dept_id"],
+      "filter": null,
+      "missingTargetPolicy": "PENDING",
+      "deleteStrategy": "REMOVE_ASSERTION",
+      "ownershipPolicy": "SOURCE_WINS",
+      "syncOrder": 120,
+      "notes": "中间表无update_time/del_flag，INCREMENTAL无法发现物理删除，需周期FULL关系扫描"
+    },
+    {
+      "mappingCode": "USER_POSITION",
+      "mappingName": "用户岗位关系",
+      "relationMode": "JOIN_TABLE",
+      "objectPropertyId": 962004,
+      "objectPropertyName": "assignedPosition",
+      "subjectEntityMappingCode": "USER_ACCOUNT",
+      "objectEntityMappingCode": "POSITION",
+      "sourceSchema": "public",
+      "sourceObject": "sys_user_post",
+      "subjectKeyMapping": {
+        "subjectKeyColumn": "user_id",
+        "sourceColumn": "user_id"
+      },
+      "objectKeyMapping": {
+        "objectKeyColumn": "post_id",
+        "sourceColumn": "post_id"
+      },
+      "relationKeyColumns": ["user_id", "post_id"],
+      "filter": null,
+      "missingTargetPolicy": "PENDING",
+      "deleteStrategy": "REMOVE_ASSERTION",
+      "ownershipPolicy": "SOURCE_WINS",
+      "syncOrder": 130,
+      "notes": "中间表无update_time/del_flag，INCREMENTAL无法发现物理删除，需周期FULL关系扫描"
+    }
+  ]
+}

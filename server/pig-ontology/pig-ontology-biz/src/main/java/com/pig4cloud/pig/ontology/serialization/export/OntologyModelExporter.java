@@ -636,6 +636,9 @@ public class OntologyModelExporter {
 					dateStr = dateStr.substring(0, 4) + "-" + dateStr.substring(4, 6) + "-" + dateStr.substring(6, 8);
 				}
 				return model.createTypedLiteral(dateStr, XSDDatatype.XSDdate);
+			case "DATETIME":
+				// ISO-8601 格式值，直接映射为 xsd:dateTime
+				return model.createTypedLiteral(value, XSDDatatype.XSDdateTime);
 			case "URI":
 				return model.createResource(value);
 			default:
@@ -655,6 +658,8 @@ public class OntologyModelExporter {
 				return XSDDatatype.XSDboolean.getURI();
 			case "DATE":
 				return XSDDatatype.XSDdate.getURI();
+			case "DATETIME":
+				return XSDDatatype.XSDdateTime.getURI();
 			case "INTEGER":
 				return XSDDatatype.XSDinteger.getURI();
 			case "DECIMAL":

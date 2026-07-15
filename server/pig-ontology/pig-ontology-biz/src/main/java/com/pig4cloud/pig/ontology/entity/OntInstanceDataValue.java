@@ -43,7 +43,7 @@ public class OntInstanceDataValue extends Model<OntInstanceDataValue> {
 	@Schema(description = "规范化词法值")
 	private String literalValue;
 
-	@Schema(description = "字面量类型：STRING/URI/DATE/INTEGER/DECIMAL/BOOLEAN")
+	@Schema(description = "字面量类型：STRING/URI/DATE/DATETIME/INTEGER/DECIMAL/BOOLEAN")
 	private String literalType;
 
 	@Schema(description = "单位ID，UNIT_REF必填")
