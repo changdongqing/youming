@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.pig4cloud.pig.ontology.mapping.project.entity.OntMappingVersion;
 import com.pig4cloud.pig.ontology.mapping.project.vo.MappingVersionDiffVO;
 import com.pig4cloud.pig.ontology.mapping.project.vo.MappingVersionVO;
+import com.pig4cloud.pig.ontology.mapping.vo.PublishPrepareResultVO;
 
 /**
  * 映射版本服务接口（18-03 §8）。
@@ -70,5 +71,14 @@ public interface OntMappingVersionService extends IService<OntMappingVersion> {
 	 * 配置差异对比。
 	 */
 	MappingVersionDiffVO diff(Long baseId, Long compareId);
+
+	/**
+	 * 发布准备：返回风险摘要（18-06 §14 publish/prepare）。
+	 * <p>
+	 * 检查发布门禁条件并返回高风险变化摘要，但不执行发布。
+	 * @param id 版本ID
+	 * @return 风险摘要
+	 */
+	PublishPrepareResultVO preparePublish(Long id);
 
 }

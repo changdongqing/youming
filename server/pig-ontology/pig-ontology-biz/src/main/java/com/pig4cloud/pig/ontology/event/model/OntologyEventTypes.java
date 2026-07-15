@@ -46,4 +46,7 @@ public final class OntologyEventTypes {
 	/** 映射版本发布：映射配置快照发布为不可变版本 */
 	public static final String MAPPING_VERSION_PUBLISHED = "MAPPING_VERSION_PUBLISHED";
 
+	/** 映射版本校验完成：映射版本通过校验进入 VALIDATED */
+	public static final String MAPPING_VERSION_VALIDATED = "MAPPING_VERSION_VALIDATED";
+
 }

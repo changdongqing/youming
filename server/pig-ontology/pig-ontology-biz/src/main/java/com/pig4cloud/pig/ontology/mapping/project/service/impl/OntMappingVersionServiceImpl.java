@@ -25,6 +25,12 @@ import com.pig4cloud.pig.ontology.mapping.project.snapshot.MappingSnapshotCanoni
 import com.pig4cloud.pig.ontology.mapping.project.support.MappingSemVerValidator;
 import com.pig4cloud.pig.ontology.mapping.project.vo.MappingVersionDiffVO;
 import com.pig4cloud.pig.ontology.mapping.project.vo.MappingVersionVO;
+import com.pig4cloud.pig.ontology.mapping.validation.MappingValidationService;
+import com.pig4cloud.pig.ontology.mapping.validation.entity.OntMappingValidationIssue;
+import com.pig4cloud.pig.ontology.mapping.validation.entity.OntMappingValidationReport;
+import com.pig4cloud.pig.ontology.mapping.validation.mapper.OntMappingValidationIssueMapper;
+import com.pig4cloud.pig.ontology.mapping.validation.mapper.OntMappingValidationReportMapper;
+import com.pig4cloud.pig.ontology.mapping.vo.PublishPrepareResultVO;
 import com.pig4cloud.pig.ontology.mapper.OntOntologyProjectMapper;
 import com.pig4cloud.pig.ontology.version.entity.OntOntologyVersion;
 import com.pig4cloud.pig.ontology.version.mapper.OntOntologyVersionMapper;
@@ -34,6 +40,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -67,6 +75,12 @@ public class OntMappingVersionServiceImpl extends ServiceImpl<OntMappingVersionM
 	private final MappingVersionDiffService diffService;
 
 	private final OntDomainEventPublisher eventPublisher;
+
+	private final MappingValidationService validationService;
+
+	private final OntMappingValidationReportMapper validationReportMapper;
+
+	private final OntMappingValidationIssueMapper validationIssueMapper;
 
 	// ==================== 查询 ====================
 
@@ -188,6 +202,9 @@ public class OntMappingVersionServiceImpl extends ServiceImpl<OntMappingVersionM
 					+ ": 仅 VALIDATED 版本可发布，当前状态: " + version.getVersionStatus());
 		}
 
+		// 2b. 发布门禁检查（18-06 §12）：报告 PASSED、violationCount=0、所有 WARNING 已确认、revision 一致
+		validationService.assertPublishGate(id);
+
 		// 3. 锁工程行
 		OntMappingProject project = projectMapper.selectForUpdate(version.getMappingProjectId());
 		if (project == null || "1".equals(project.getDelFlag())) {
@@ -303,6 +320,99 @@ public class OntMappingVersionServiceImpl extends ServiceImpl<OntMappingVersionM
 	@Override
 	public MappingVersionDiffVO diff(Long baseId, Long compareId) {
 		return diffService.diff(baseId, compareId);
+	}
+
+	// ==================== 发布准备 ====================
+
+	@Override
+	public PublishPrepareResultVO preparePublish(Long id) {
+		OntMappingVersion version = findVersionOrThrow(id);
+		OntMappingProject project = projectMapper.selectById(version.getMappingProjectId());
+		if (project == null || "1".equals(project.getDelFlag())) {
+			throw new IllegalArgumentException(MappingErrorCode.ONT_MAP_001.getMessage());
+		}
+
+		PublishPrepareResultVO result = new PublishPrepareResultVO();
+		result.setVersionId(id);
+		result.setVersionNumber(version.getVersionNumber());
+		result.setVersionStatus(version.getVersionStatus());
+		result.setValidationReportId(version.getValidationReportId());
+		result.setConfigHash(version.getConfigHash());
+		result.setHighRiskChanges(new ArrayList<>());
+		result.setGateChecks(new ArrayList<>());
+
+		// 检查校验报告
+		OntMappingValidationReport report = null;
+		int unacknowledgedWarnings = 0;
+		if (version.getValidationReportId() != null) {
+			report = validationReportMapper.selectById(version.getValidationReportId());
+			if (report != null && "0".equals(report.getDelFlag())) {
+				result.setReportStatus(report.getReportStatus());
+				result.setViolationCount(report.getViolationCount());
+				result.setWarningCount(report.getWarningCount());
+				unacknowledgedWarnings = validationIssueMapper.countUnacknowledgedWarnings(report.getId());
+				result.setUnacknowledgedWarningCount(unacknowledgedWarnings);
+			}
+		}
+
+		// 本体版本信息
+		OntOntologyProject ontologyProject = ontologyProjectMapper.selectById(project.getOntologyId());
+		if (ontologyProject != null) {
+			result.setOntologyVersionId(ontologyProject.getCurrentVersionId());
+			result.setWorkspaceRevision(ontologyProject.getWorkspaceRevision());
+		}
+
+		// 门禁检查
+		List<PublishPrepareResultVO.GateCheckItem> gateChecks = result.getGateChecks();
+		boolean allPassed = true;
+
+		allPassed &= addGateCheck(gateChecks, "VERSION_STATUS_VALIDATED",
+				"VALIDATED".equals(version.getVersionStatus()),
+				"版本状态: " + version.getVersionStatus());
+
+		boolean reportPassed = report != null && "PASSED".equals(report.getReportStatus());
+		allPassed &= addGateCheck(gateChecks, "REPORT_PASSED", reportPassed,
+				report != null ? "报告状态: " + report.getReportStatus() : "无校验报告");
+
+		boolean noViolations = report != null && report.getViolationCount() != null
+				&& report.getViolationCount() == 0;
+		allPassed &= addGateCheck(gateChecks, "NO_VIOLATIONS", noViolations,
+				report != null && report.getViolationCount() != null
+						? "VIOLATION数: " + report.getViolationCount() : "无校验报告");
+
+		allPassed &= addGateCheck(gateChecks, "ALL_WARNINGS_ACKNOWLEDGED",
+				unacknowledgedWarnings == 0,
+				"未确认WARNING: " + unacknowledgedWarnings);
+
+		// 本体版本守卫（宽松检查，只报告不抛异常）
+		boolean ontologyOk = true;
+		try {
+			versionGuard.assertPublishable(version, project);
+		}
+		catch (IllegalStateException e) {
+			ontologyOk = false;
+			allPassed = false;
+			// 同时作为高风险变化记录
+			PublishPrepareResultVO.RiskItem risk = new PublishPrepareResultVO.RiskItem();
+			risk.setRiskType("SCHEMA_DRIFT");
+			risk.setDescription(e.getMessage());
+			result.getHighRiskChanges().add(risk);
+		}
+		addGateCheck(gateChecks, "ONTOLOGY_VERSION_CONSISTENT", ontologyOk,
+				ontologyOk ? "本体版本一致" : "本体版本不一致（见高风险变化）");
+
+		result.setPublishable(allPassed);
+		return result;
+	}
+
+	private boolean addGateCheck(List<PublishPrepareResultVO.GateCheckItem> checks,
+			String name, boolean passed, String message) {
+		PublishPrepareResultVO.GateCheckItem item = new PublishPrepareResultVO.GateCheckItem();
+		item.setCheckName(name);
+		item.setPassed(passed);
+		item.setMessage(message);
+		checks.add(item);
+		return passed;
 	}
 
 	// ==================== 内部方法 ====================

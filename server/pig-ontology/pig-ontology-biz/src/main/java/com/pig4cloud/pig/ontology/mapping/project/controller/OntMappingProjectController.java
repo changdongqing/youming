@@ -17,6 +17,7 @@ import com.pig4cloud.pig.ontology.mapping.project.service.OntMappingVersionServi
 import com.pig4cloud.pig.ontology.mapping.project.vo.MappingProjectVO;
 import com.pig4cloud.pig.ontology.mapping.project.vo.MappingVersionDiffVO;
 import com.pig4cloud.pig.ontology.mapping.project.vo.MappingVersionVO;
+import com.pig4cloud.pig.ontology.mapping.vo.PublishPrepareResultVO;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -142,6 +143,12 @@ public class OntMappingProjectController {
 	@HasPermission("ontology_mapping_view")
 	public R<MappingVersionDiffVO> diffVersions(@PathVariable Long id, @PathVariable Long otherId) {
 		return R.ok(versionService.diff(id, otherId));
+	}
+
+	@PostMapping("/ontology/data-mapping/versions/{id}/publish/prepare")
+	@HasPermission("ontology_mapping_publish")
+	public R<PublishPrepareResultVO> preparePublish(@PathVariable Long id) {
+		return R.ok(versionService.preparePublish(id));
 	}
 
 }
