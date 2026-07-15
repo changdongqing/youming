@@ -4,7 +4,12 @@
 
 package com.pig4cloud.pig.ontology.mapping.project.snapshot;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pig4cloud.pig.ontology.mapping.entity.OntEntityMapping;
+import com.pig4cloud.pig.ontology.mapping.entity.OntFieldMapping;
+import com.pig4cloud.pig.ontology.mapping.mapper.OntEntityMappingMapper;
+import com.pig4cloud.pig.ontology.mapping.mapper.OntFieldMappingMapper;
 import com.pig4cloud.pig.ontology.mapping.project.entity.OntMappingProject;
 import com.pig4cloud.pig.ontology.mapping.project.entity.OntMappingVersion;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +24,7 @@ import java.util.TreeMap;
  * 映射配置快照构建器（18-03 §6）。
  * <p>
  * 发布时将工程信息、本体绑定和映射子表规范化写入 {@code config_snapshot}。
- * V1 简化：实体/字段/关系子表暂为空数组（18-04/18-05 实现后填充）。
+ * 18-04 起填充实体映射和字段映射子表；关系映射子表待 18-05 后填充。
  * <p>
  * 不包含审计字段、凭证、最近作业和 UI 临时坐标。
  *
@@ -31,6 +36,10 @@ import java.util.TreeMap;
 public class MappingSnapshotBuilder {
 
 	private final ObjectMapper objectMapper;
+
+	private final OntEntityMappingMapper entityMappingMapper;
+
+	private final OntFieldMappingMapper fieldMappingMapper;
 
 	private static final int SNAPSHOT_FORMAT_VERSION = 1;
 
@@ -65,9 +74,67 @@ public class MappingSnapshotBuilder {
 			ontologyBinding.put("workspaceRevision", version.getValidatedWorkspaceRevision());
 			snapshot.put("ontologyBinding", ontologyBinding);
 
-			// V1: 子表为空数组，18-04/18-05 后填充
-			snapshot.put("entityMappings", List.of());
-			snapshot.put("fieldMappings", List.of());
+			// 18-04: 填充实体映射和字段映射子表
+			List<OntEntityMapping> entityMappings = entityMappingMapper.selectList(
+					Wrappers.<OntEntityMapping>lambdaQuery()
+							.eq(OntEntityMapping::getMappingVersionId, version.getId())
+							.eq(OntEntityMapping::getDelFlag, "0")
+							.orderByAsc(OntEntityMapping::getSyncOrder));
+
+			List<Map<String, Object>> entityMappingSnapshots = new java.util.ArrayList<>();
+			List<Map<String, Object>> fieldMappingSnapshots = new java.util.ArrayList<>();
+
+			for (OntEntityMapping em : entityMappings) {
+				Map<String, Object> emSnapshot = new TreeMap<>();
+				emSnapshot.put("code", em.getMappingCode());
+				emSnapshot.put("conflictPolicy", em.getConflictPolicy());
+				emSnapshot.put("deleteStrategy", em.getDeleteStrategy());
+				emSnapshot.put("enabled", em.getEnabled());
+				emSnapshot.put("id", em.getId());
+				emSnapshot.put("iriTemplate", em.getIriTemplate());
+				emSnapshot.put("keyColumns", em.getKeyColumns());
+				emSnapshot.put("labelTemplate", em.getLabelTemplate());
+				emSnapshot.put("mappingName", em.getMappingName());
+				emSnapshot.put("sourceId", em.getSourceId());
+				emSnapshot.put("sourceObject", em.getSourceObject());
+				emSnapshot.put("sourceObjectType", em.getSourceObjectType());
+				emSnapshot.put("sourceSchema", em.getSourceSchema());
+				emSnapshot.put("syncOrder", em.getSyncOrder());
+				emSnapshot.put("targetEntityTypeId", em.getTargetEntityTypeId());
+				emSnapshot.put("targetNamespaceId", em.getTargetNamespaceId());
+				entityMappingSnapshots.add(emSnapshot);
+
+				// 查询该实体映射下的字段映射
+				List<OntFieldMapping> fieldMappings = fieldMappingMapper.selectList(
+						Wrappers.<OntFieldMapping>lambdaQuery()
+								.eq(OntFieldMapping::getEntityMappingId, em.getId())
+								.eq(OntFieldMapping::getDelFlag, "0")
+								.orderByAsc(OntFieldMapping::getSortOrder));
+
+				for (OntFieldMapping fm : fieldMappings) {
+					Map<String, Object> fmSnapshot = new TreeMap<>();
+					fmSnapshot.put("constantValue", fm.getConstantValue());
+					fmSnapshot.put("entityMappingId", fm.getEntityMappingId());
+					fmSnapshot.put("fieldMappingCode", fm.getFieldMappingCode());
+					fmSnapshot.put("fieldMappingName", fm.getFieldMappingName());
+					fmSnapshot.put("id", fm.getId());
+					fmSnapshot.put("multiValueStrategy", fm.getMultiValueStrategy());
+					fmSnapshot.put("nullHandling", fm.getNullHandling());
+					fmSnapshot.put("ownershipPolicy", fm.getOwnershipPolicy());
+					fmSnapshot.put("sourceColumn", fm.getSourceColumn());
+					fmSnapshot.put("sourceKind", fm.getSourceKind());
+					fmSnapshot.put("sortOrder", fm.getSortOrder());
+					fmSnapshot.put("targetDataPropertyId", fm.getTargetDataPropertyId());
+					fmSnapshot.put("transformer", fm.getTransformer());
+					fmSnapshot.put("transformerParams", fm.getTransformerParams());
+					fmSnapshot.put("unitId", fm.getUnitId());
+					fieldMappingSnapshots.add(fmSnapshot);
+				}
+			}
+
+			snapshot.put("entityMappings", entityMappingSnapshots);
+			snapshot.put("fieldMappings", fieldMappingSnapshots);
+			// 18-05: 关系映射子表待实现后填充
 			snapshot.put("relationMappings", List.of());
 
 			// 元数据依赖
