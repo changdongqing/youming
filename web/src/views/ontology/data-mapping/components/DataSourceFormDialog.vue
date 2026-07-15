@@ -134,7 +134,7 @@
 					<el-descriptions-item label="数据源编码">{{ form.sourceCode }}</el-descriptions-item>
 					<el-descriptions-item label="数据源名称">{{ form.sourceName }}</el-descriptions-item>
 					<el-descriptions-item label="连接模式">{{ form.connectionMode }}</el-descriptions-item>
-					<el-descriptions-item label="用户名">{{ form.username || (isEdit ? '(保持原凭证)' : '(未填写)' }}</el-descriptions-item>
+					<el-descriptions-item label="用户名">{{ form.username || (isEdit ? '(保持原凭证)' : '(未填写)') }}</el-descriptions-item>
 					<el-descriptions-item label="Schema白名单">{{ form.allowedSchemas?.join(', ') || '-' }}</el-descriptions-item>
 				</el-descriptions>
 			</div>
