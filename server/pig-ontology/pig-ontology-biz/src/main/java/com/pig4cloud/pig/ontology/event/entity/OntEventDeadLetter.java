@@ -16,6 +16,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 
 /**
  * 事件死信表，达到最大重试次数或不可重试错误的死信记录。
@@ -50,6 +51,7 @@ public class OntEventDeadLetter extends Model<OntEventDeadLetter> {
 	private String streamRecordId;
 
 	@Schema(description = "事件负载JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String payload;
 
 	@Schema(description = "失败分类：RETRYABLE/NON_RETRYABLE")

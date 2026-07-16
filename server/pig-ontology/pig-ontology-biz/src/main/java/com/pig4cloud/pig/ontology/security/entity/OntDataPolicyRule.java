@@ -16,6 +16,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 
 /**
  * 数据策略例外规则。
@@ -59,6 +60,7 @@ public class OntDataPolicyRule extends Model<OntDataPolicyRule> {
 	private String maskType;
 
 	@Schema(description = "脱敏参数JSON")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String maskParameter;
 
 	@Schema(description = "描述")

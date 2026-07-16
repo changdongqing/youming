@@ -16,6 +16,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 
 /**
  * 实例迁移作业表，记录 BREAKING 版本发布时的实例迁移执行。
@@ -44,9 +45,11 @@ public class OntInstanceMigrationJob extends Model<OntInstanceMigrationJob> {
 	private String status;
 
 	@Schema(description = "迁移计划快照JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String planSnapshot;
 
 	@Schema(description = "游标数据JSONB，记录上次处理位置")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String cursorData;
 
 	@Schema(description = "待迁移实例总数")

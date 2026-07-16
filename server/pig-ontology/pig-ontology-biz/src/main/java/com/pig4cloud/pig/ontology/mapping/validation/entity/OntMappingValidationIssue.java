@@ -16,6 +16,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 
 /**
  * 映射校验问题表（18-06 §5）。
@@ -62,6 +63,7 @@ public class OntMappingValidationIssue extends Model<OntMappingValidationIssue> 
 	private String sourceRecordKeyHash;
 
 	@Schema(description = "样本上下文JSON")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String sampleContext;
 
 	@Schema(description = "是否已确认: 0否 1是")

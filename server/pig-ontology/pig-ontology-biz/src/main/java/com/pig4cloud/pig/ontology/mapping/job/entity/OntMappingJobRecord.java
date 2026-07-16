@@ -16,6 +16,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 
 /**
  * 映射作业记录结果表（18-07 §4）。
@@ -76,6 +77,7 @@ public class OntMappingJobRecord extends Model<OntMappingJobRecord> {
 	private String errorMessage;
 
 	@Schema(description = "字段级错误JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String fieldErrors;
 
 	@Schema(description = "内容哈希")

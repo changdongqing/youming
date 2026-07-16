@@ -16,6 +16,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 
 /**
  * 映射校验报告表（18-06 §4）。
@@ -74,6 +75,7 @@ public class OntMappingValidationReport extends Model<OntMappingValidationReport
 	private Integer infoCount;
 
 	@Schema(description = "摘要JSON")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String summaryJson;
 
 	@Schema(description = "开始时间")

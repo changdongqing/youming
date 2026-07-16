@@ -16,6 +16,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 
 /**
  * 公理规则。
@@ -65,6 +66,7 @@ public class OntAxiomRule extends Model<OntAxiomRule> {
 	private String executorCode;
 
 	@Schema(description = "配置JSON")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String configJson;
 
 	@Schema(description = "OWL公理")

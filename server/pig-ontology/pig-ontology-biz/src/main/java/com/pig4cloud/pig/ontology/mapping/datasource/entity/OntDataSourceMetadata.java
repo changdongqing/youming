@@ -16,6 +16,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 
 /**
  * 数据源元数据缓存表。
@@ -49,6 +50,7 @@ public class OntDataSourceMetadata extends Model<OntDataSourceMetadata> {
 	private String objectType;
 
 	@Schema(description = "元数据JSON")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String metadataJson;
 
 	@Schema(description = "元数据指纹哈希")

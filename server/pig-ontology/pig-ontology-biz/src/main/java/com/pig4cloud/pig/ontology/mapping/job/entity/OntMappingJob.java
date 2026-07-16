@@ -16,6 +16,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 
 /**
  * 映射作业主表（18-07 §3）。
@@ -58,6 +59,7 @@ public class OntMappingJob extends Model<OntMappingJob> {
 	private Long requestedUserId;
 
 	@Schema(description = "授权上下文快照JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String authorizationSnapshot;
 
 	@Schema(description = "执行时配置哈希")
@@ -70,9 +72,11 @@ public class OntMappingJob extends Model<OntMappingJob> {
 	private Long workspaceRevision;
 
 	@Schema(description = "游标前值JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String cursorBefore;
 
 	@Schema(description = "游标后值JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String cursorAfter;
 
 	@Schema(description = "当前阶段: ENTITY/RELATION/DELETE/PENDING")

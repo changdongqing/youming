@@ -16,6 +16,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 
 /**
  * 本体版本表，存储不可变 Schema 快照及发布元数据。
@@ -62,15 +63,18 @@ public class OntOntologyVersion extends Model<OntOntologyVersion> {
 	private Integer snapshotFormatVersion;
 
 	@Schema(description = "规范化全量Schema快照JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String schemaSnapshot;
 
 	@Schema(description = "快照SHA-256哈希")
 	private String snapshotHash;
 
 	@Schema(description = "与priorVersion的差异摘要JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String diffSummary;
 
 	@Schema(description = "实例迁移计划JSONB，BREAKING时必填")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String migrationPlan;
 
 	@Schema(description = "关联校验报告ID")

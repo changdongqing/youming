@@ -16,6 +16,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 
 /**
  * 校验报告主表。
@@ -83,6 +84,7 @@ public class OntValidationReport extends Model<OntValidationReport> {
 	private String errorMessage;
 
 	@Schema(description = "完整JSON快照")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String resultJson;
 
 	@TableField(fill = FieldFill.INSERT)
