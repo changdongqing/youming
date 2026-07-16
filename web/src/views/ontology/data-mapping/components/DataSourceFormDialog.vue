@@ -12,7 +12,7 @@
 			<!-- ==================== 步骤1：基本信息 ==================== -->
 			<div v-show="currentStep === 0">
 				<el-form-item label="数据源编码" prop="sourceCode">
-					<el-input v-model="form.sourceCode" placeholder="大写字母开头，3-64位大写字母/数字/下划线" :disabled="isEdit" />
+					<el-input v-model="form.sourceCode" placeholder="字母开头，仅含字母、数字、下划线" :disabled="isEdit" />
 				</el-form-item>
 				<el-form-item label="数据源名称" prop="sourceName">
 					<el-input v-model="form.sourceName" placeholder="数据源名称" maxlength="128" show-word-limit />
@@ -195,7 +195,7 @@ const title = computed(() => (isEdit.value ? '编辑数据源' : '新增数据�
 const rules = {
 	sourceCode: [
 		{ required: true, message: '请输入数据源编码', trigger: 'blur' },
-		{ pattern: /^[A-Z][A-Z0-9_]{2,63}$/, message: '大写字母开头，3-64位大写字母/数字/下划线', trigger: 'blur' },
+		{ pattern: /^[a-zA-Z][a-zA-Z0-9_]*$/, message: '字母开头，仅含字母、数字、下划线', trigger: 'blur' },
 	],
 	sourceName: [{ required: true, message: '请输入数据源名称', trigger: 'blur' }],
 	sourceType: [{ required: true, message: '请选择源类型', trigger: 'change' }],
