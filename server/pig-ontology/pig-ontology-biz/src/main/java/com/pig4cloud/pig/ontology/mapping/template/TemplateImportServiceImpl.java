@@ -172,7 +172,7 @@ public class TemplateImportServiceImpl implements TemplateImportService {
 		dto.setKeyColumns(em.getKeyColumns());
 		dto.setIriTemplate(em.getIriTemplate());
 		dto.setLabelTemplate(em.getLabelTemplate());
-		dto.setFilterDsl(em.getFilter());
+		dto.setFilterDsl(wrapFilterAsJson(em.getFilter()));
 		dto.setIncrementalColumn(em.getIncrementalColumn());
 		dto.setIncrementalType(em.getIncrementalType());
 		dto.setSourceDeleteFlagColumn(em.getSourceDeleteFlagColumn());
@@ -220,7 +220,7 @@ public class TemplateImportServiceImpl implements TemplateImportService {
 		dto.setSubjectKeyMapping(rm.getSubjectKeyMapping());
 		dto.setObjectKeyMapping(rm.getObjectKeyMapping());
 		dto.setRelationKeyColumns(rm.getRelationKeyColumns());
-		dto.setFilterDsl(rm.getFilter());
+		dto.setFilterDsl(wrapFilterAsJson(rm.getFilter()));
 		dto.setMissingTargetPolicy(rm.getMissingTargetPolicy());
 		dto.setDeleteStrategy(rm.getDeleteStrategy());
 		dto.setOwnershipPolicy(rm.getOwnershipPolicy());
@@ -242,6 +242,35 @@ public class TemplateImportServiceImpl implements TemplateImportService {
 			return objectMapper.writeValueAsString(obj);
 		} catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
 			throw new IllegalStateException("序列化失败: " + obj, ex);
+		}
+	}
+
+	/**
+	 * 将模板中的 filter 字段（SQL 条件文本）包装为合法 JSON，用于写入 jsonb 列 filter_dsl。
+	 * <p>
+	 * 模板 filter 值有两种情况：
+	 * <ul>
+	 *   <li>null 或空白 → 返回 null</li>
+	 *   <li>已经是合法 JSON（以 { 或 [ 开头）→ 原样返回</li>
+	 *   <li>SQL 条件文本（如 {@code del_flag = '0' AND ...}）→ 包装为 {@code {"sql":"..."}} </li>
+	 * </ul>
+	 * @param filter 模板中的 filter 值
+	 * @return 合法 JSON 字符串，或 null
+	 */
+	private String wrapFilterAsJson(String filter) {
+		if (filter == null || filter.isBlank()) {
+			return null;
+		}
+		String trimmed = filter.trim();
+		// 已经是 JSON 对象或数组，原样返回
+		if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+			return trimmed;
+		}
+		// SQL 条件文本，包装为 JSON 对象
+		try {
+			return objectMapper.writeValueAsString(java.util.Map.of("sql", trimmed));
+		} catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+			throw new IllegalStateException("序列化 filter 失败: " + filter, ex);
 		}
 	}
 
