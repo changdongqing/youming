@@ -11,6 +11,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.activerecord.Model;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -25,7 +26,7 @@ import java.time.LocalDateTime;
  * @author youming
  */
 @Data
-@TableName("ont_data_source")
+@TableName(value = "ont_data_source", autoResultMap = true)
 @Schema(description = "数据源注册")
 @EqualsAndHashCode(callSuper = true)
 public class OntDataSource extends Model<OntDataSource> {
@@ -51,6 +52,7 @@ public class OntDataSource extends Model<OntDataSource> {
 	@Schema(description = "连接模式: HOST / JDBC_URL")
 	private String connectionMode;
 
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	@Schema(description = "连接配置JSON（不含凭证）")
 	private String connectionConfig;
 
@@ -63,9 +65,11 @@ public class OntDataSource extends Model<OntDataSource> {
 	@Schema(description = "密钥版本ID")
 	private String credentialKeyId;
 
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	@Schema(description = "允许的Schema白名单JSON")
 	private String allowedSchemas;
 
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	@Schema(description = "允许的对象白名单JSON")
 	private String allowedObjects;
 

@@ -11,6 +11,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.activerecord.Model;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -26,7 +27,7 @@ import java.time.LocalDateTime;
  * @author youming
  */
 @Data
-@TableName("ont_relation_mapping")
+@TableName(value = "ont_relation_mapping", autoResultMap = true)
 @Schema(description = "关系映射")
 @EqualsAndHashCode(callSuper = true)
 public class OntRelationMapping extends Model<OntRelationMapping> {
@@ -68,15 +69,19 @@ public class OntRelationMapping extends Model<OntRelationMapping> {
 	private String sourceObject;
 
 	@Schema(description = "主体键映射JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String subjectKeyMapping;
 
 	@Schema(description = "客体键映射JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String objectKeyMapping;
 
 	@Schema(description = "关系键列JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String relationKeyColumns;
 
 	@Schema(description = "过滤条件DSL JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String filterDsl;
 
 	@Schema(description = "缺失目标策略: PENDING / SKIP / FAIL_RECORD")

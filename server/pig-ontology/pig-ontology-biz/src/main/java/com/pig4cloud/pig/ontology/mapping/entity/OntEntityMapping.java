@@ -11,6 +11,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.activerecord.Model;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -25,7 +26,7 @@ import java.time.LocalDateTime;
  * @author youming
  */
 @Data
-@TableName("ont_entity_mapping")
+@TableName(value = "ont_entity_mapping", autoResultMap = true)
 @Schema(description = "实体映射")
 @EqualsAndHashCode(callSuper = true)
 public class OntEntityMapping extends Model<OntEntityMapping> {
@@ -64,6 +65,7 @@ public class OntEntityMapping extends Model<OntEntityMapping> {
 	private Long targetNamespaceId;
 
 	@Schema(description = "键列配置JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String keyColumns;
 
 	@Schema(description = "IRI模板")
@@ -73,6 +75,7 @@ public class OntEntityMapping extends Model<OntEntityMapping> {
 	private String labelTemplate;
 
 	@Schema(description = "过滤条件DSL JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String filterDsl;
 
 	@Schema(description = "增量列名")
@@ -85,6 +88,7 @@ public class OntEntityMapping extends Model<OntEntityMapping> {
 	private String sourceDeleteFlagColumn;
 
 	@Schema(description = "源删除值JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String sourceDeleteValues;
 
 	@Schema(description = "删除策略: IGNORE / MARK_INACTIVE / SOFT_DELETE / BLOCK_AND_REVIEW")

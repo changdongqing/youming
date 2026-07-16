@@ -11,6 +11,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.activerecord.Model;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -25,7 +26,7 @@ import java.time.LocalDateTime;
  * @author youming
  */
 @Data
-@TableName("ont_mapping_version")
+@TableName(value = "ont_mapping_version", autoResultMap = true)
 @Schema(description = "映射版本")
 @EqualsAndHashCode(callSuper = true)
 public class OntMappingVersion extends Model<OntMappingVersion> {
@@ -58,18 +59,21 @@ public class OntMappingVersion extends Model<OntMappingVersion> {
 	private Long validatedWorkspaceRevision;
 
 	@Schema(description = "配置快照JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String configSnapshot;
 
 	@Schema(description = "配置SHA-256哈希")
 	private String configHash;
 
 	@Schema(description = "元数据依赖JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String metadataDependencies;
 
 	@Schema(description = "校验报告ID")
 	private Long validationReportId;
 
 	@Schema(description = "校验摘要JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String validationSummary;
 
 	@Schema(description = "发布说明")

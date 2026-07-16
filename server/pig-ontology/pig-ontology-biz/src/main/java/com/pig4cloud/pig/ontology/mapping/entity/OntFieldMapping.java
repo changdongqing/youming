@@ -11,6 +11,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.activerecord.Model;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -26,7 +27,7 @@ import java.time.LocalDateTime;
  * @author youming
  */
 @Data
-@TableName("ont_field_mapping")
+@TableName(value = "ont_field_mapping", autoResultMap = true)
 @Schema(description = "字段映射")
 @EqualsAndHashCode(callSuper = true)
 public class OntFieldMapping extends Model<OntFieldMapping> {
@@ -68,6 +69,7 @@ public class OntFieldMapping extends Model<OntFieldMapping> {
 	private String transformer;
 
 	@Schema(description = "转换器参数JSONB")
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	private String transformerParams;
 
 	@Schema(description = "空值处理: SKIP_NULL / USE_DEFAULT / REJECT_NULL")
