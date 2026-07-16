@@ -11,6 +11,7 @@ import com.pig4cloud.pig.common.security.annotation.HasPermission;
 import com.pig4cloud.pig.ontology.mapping.datasource.dto.DataSourceCreateDTO;
 import com.pig4cloud.pig.ontology.mapping.datasource.dto.DataSourceUpdateDTO;
 import com.pig4cloud.pig.ontology.mapping.datasource.dto.MetadataObjectQuery;
+import com.pig4cloud.pig.ontology.mapping.datasource.dto.SchemaPreviewRequest;
 import com.pig4cloud.pig.ontology.mapping.datasource.entity.OntDataSource;
 import com.pig4cloud.pig.ontology.mapping.datasource.service.OntDataSourceService;
 import com.pig4cloud.pig.ontology.mapping.datasource.vo.DataSourceVO;
@@ -101,6 +102,12 @@ public class OntDataSourceController {
 	@HasPermission("ontology_mapping_view")
 	public R<List<String>> listSchemas(@PathVariable Long id) {
 		return R.ok(dataSourceService.listSchemas(id));
+	}
+
+	@PostMapping("/schemas/preview")
+	@HasPermission("ontology_mapping_source_manage")
+	public R<List<String>> previewSchemas(@Valid @RequestBody SchemaPreviewRequest request) {
+		return R.ok(dataSourceService.previewSchemas(request));
 	}
 
 	@GetMapping("/{id}/objects")

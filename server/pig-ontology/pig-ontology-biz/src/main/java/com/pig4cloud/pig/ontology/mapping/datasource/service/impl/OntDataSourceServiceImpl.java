@@ -15,6 +15,7 @@ import com.pig4cloud.pig.ontology.mapping.datasource.crypto.DataSourceCredential
 import com.pig4cloud.pig.ontology.mapping.datasource.dto.DataSourceCreateDTO;
 import com.pig4cloud.pig.ontology.mapping.datasource.dto.DataSourceUpdateDTO;
 import com.pig4cloud.pig.ontology.mapping.datasource.dto.MetadataObjectQuery;
+import com.pig4cloud.pig.ontology.mapping.datasource.dto.SchemaPreviewRequest;
 import com.pig4cloud.pig.ontology.mapping.datasource.entity.OntDataSource;
 import com.pig4cloud.pig.ontology.mapping.datasource.entity.OntDataSourceMetadata;
 import com.pig4cloud.pig.ontology.mapping.datasource.mapper.OntDataSourceMapper;
@@ -434,6 +435,28 @@ public class OntDataSourceServiceImpl extends ServiceImpl<OntDataSourceMapper, O
 	}
 
 	@Override
+	public List<String> previewSchemas(SchemaPreviewRequest request) {
+		// 校验连接配置（复用已有校验逻辑，拒绝包含凭证字段的配置）
+		validateConnectionConfig(request.getConnectionMode(), request.getConnectionConfig());
+
+		// 从连接配置构建 JDBC URL（不落库，不经过 OntDataSource 实体）
+		String jdbcUrl = buildJdbcUrlFromConfig(request.getConnectionMode(), request.getConnectionConfig());
+		int timeoutSeconds = extractTimeoutSecondsFromConfig(request.getConnectionConfig());
+
+		// 数据源类型固定为 JDBC/POSTGRESQL（V1 仅支持 PostgreSQL）
+		DataSourceConnector connector = connectorRegistry.getConnector("JDBC", "POSTGRESQL");
+
+		try (Connection conn = openReadonlyConnection(jdbcUrl, request.getUsername(), request.getPassword(),
+				timeoutSeconds)) {
+			return connector.listSchemas(new DataSourceConnector.MetadataRequest(conn, null));
+		}
+		catch (Exception e) {
+			log.error("Failed to preview schemas: {}", e.getMessage());
+			throw new RuntimeException("Schema预览失败: " + e.getMessage(), e);
+		}
+	}
+
+	@Override
 	public List<SourceObjectMetadataVO.SourceObjectSummary> listObjects(Long id, MetadataObjectQuery query) {
 		OntDataSource ds = findByIdOrThrow(id);
 		DataSourceCredentialCryptoService.DataSourceCredential credential = decryptCredential(ds);
@@ -598,6 +621,47 @@ public class OntDataSourceServiceImpl extends ServiceImpl<OntDataSourceMapper, O
 		try {
 			@SuppressWarnings("unchecked")
 			Map<String, Object> config = objectMapper.readValue(ds.getConnectionConfig(), Map.class);
+			Object val = config.get("connectTimeoutSeconds");
+			return val != null ? ((Number) val).intValue() : DEFAULT_TIMEOUT_SECONDS;
+		}
+		catch (Exception e) {
+			return DEFAULT_TIMEOUT_SECONDS;
+		}
+	}
+
+	/**
+	 * 从连接配置 JSON 构建 JDBC URL（不落库预览用，不依赖 OntDataSource 实体）。
+	 */
+	private String buildJdbcUrlFromConfig(String connectionMode, String connectionConfig) {
+		try {
+			@SuppressWarnings("unchecked")
+			Map<String, Object> config = objectMapper.readValue(connectionConfig, Map.class);
+
+			if ("JDBC_URL".equals(connectionMode)) {
+				String jdbcUrl = (String) config.get("jdbcUrl");
+				PostgreSqlDialect.validateJdbcUrl(jdbcUrl);
+				return jdbcUrl;
+			}
+			else {
+				String host = (String) config.get("host");
+				int port = config.get("port") != null ? ((Number) config.get("port")).intValue() : 5432;
+				String database = (String) config.get("database");
+				String sslMode = (String) config.get("sslMode");
+				return PostgreSqlDialect.buildJdbcUrl(host, port, database, sslMode);
+			}
+		}
+		catch (Exception e) {
+			throw new IllegalArgumentException(DataSourceErrorCode.ONT_DS_016.getMessage(), e);
+		}
+	}
+
+	/**
+	 * 从连接配置 JSON 提取超时秒数（不落库预览用）。
+	 */
+	private int extractTimeoutSecondsFromConfig(String connectionConfig) {
+		try {
+			@SuppressWarnings("unchecked")
+			Map<String, Object> config = objectMapper.readValue(connectionConfig, Map.class);
 			Object val = config.get("connectTimeoutSeconds");
 			return val != null ? ((Number) val).intValue() : DEFAULT_TIMEOUT_SECONDS;
 		}

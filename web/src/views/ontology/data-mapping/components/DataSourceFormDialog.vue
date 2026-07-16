@@ -102,7 +102,8 @@
 						filterable
 						allow-create
 						default-first-option
-						placeholder="输入或选择Schema"
+						:loading="schemaLoading"
+						placeholder="从数据库自动发现或手动输入"
 						style="width: 100%"
 					>
 						<el-option v-for="s in schemaOptions" :key="s" :label="s" :value="s" />
@@ -277,6 +278,34 @@ const handlePrev = () => {
 	if (currentStep.value > 0) currentStep.value--;
 };
 
+const schemaLoading = ref(false);
+
+const loadSchemaOptions = async () => {
+	schemaLoading.value = true;
+	try {
+		form.connectionConfig = buildConnectionConfig();
+		// 编辑模式下凭证可能为空（保持原凭证），此时用已保存数据源的ID加载
+		if (isEdit.value && form.id && !form.password) {
+			const { data } = await dataSourceApi.listSchemas(form.id);
+			schemaOptions.value = data || [];
+		} else {
+			const { data } = await dataSourceApi.previewSchemas({
+				sourceType: form.sourceType,
+				connectionMode: form.connectionMode,
+				connectionConfig: form.connectionConfig,
+				username: form.username,
+				password: form.password,
+			});
+			schemaOptions.value = data || [];
+		}
+	} catch (e: any) {
+		msgError('Schema预览失败: ' + (e?.message || e));
+		schemaOptions.value = [];
+	} finally {
+		schemaLoading.value = false;
+	}
+};
+
 const handleNext = async () => {
 	// 步骤间校验
 	if (currentStep.value === 0) {
@@ -313,6 +342,8 @@ const handleNext = async () => {
 				return;
 			}
 		}
+		// 进入白名单步骤前，预览 Schema 列表（不落库直连发现）
+		await loadSchemaOptions();
 	}
 	if (currentStep.value === 3) {
 		// 白名单至少一个Schema

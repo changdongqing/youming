@@ -43,6 +43,7 @@ import type {
 	JobRetryRequest,
 	MappingTemplateSummary,
 	TemplateImportRequest,
+	SchemaPreviewRequest,
 } from '/@/types/ontology/data-mapping';
 
 const BASE = '/admin/ontology/data-mapping';
@@ -85,6 +86,10 @@ export const dataSourceApi = {
 	/** 获取Schema列表 */
 	listSchemas: (id: number) => {
 		return request<string[]>({ url: `${BASE}/sources/${id}/schemas`, method: 'get' });
+	},
+	/** 预览Schema（新建向导不落库直连发现） */
+	previewSchemas: (data: SchemaPreviewRequest) => {
+		return request<string[]>({ url: `${BASE}/sources/schemas/preview`, method: 'post', data });
 	},
 	/** 获取对象摘要列表 */
 	listObjects: (id: number, params?: MetadataObjectQuery) => {

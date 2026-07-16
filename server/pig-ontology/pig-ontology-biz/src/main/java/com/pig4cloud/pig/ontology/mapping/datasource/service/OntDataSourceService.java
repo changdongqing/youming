@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.pig4cloud.pig.ontology.mapping.datasource.dto.DataSourceCreateDTO;
 import com.pig4cloud.pig.ontology.mapping.datasource.dto.DataSourceUpdateDTO;
 import com.pig4cloud.pig.ontology.mapping.datasource.dto.MetadataObjectQuery;
+import com.pig4cloud.pig.ontology.mapping.datasource.dto.SchemaPreviewRequest;
 import com.pig4cloud.pig.ontology.mapping.datasource.entity.OntDataSource;
 import com.pig4cloud.pig.ontology.mapping.datasource.vo.DataSourceVO;
 import com.pig4cloud.pig.ontology.mapping.datasource.vo.SourceObjectMetadataVO;
@@ -66,6 +67,11 @@ public interface OntDataSourceService extends IService<OntDataSource> {
 	 * 列出 Schema。
 	 */
 	List<String> listSchemas(Long id);
+
+	/**
+	 * 预览 Schema（新建向导第4步使用，不落库直连发现）。
+	 */
+	List<String> previewSchemas(SchemaPreviewRequest request);
 
 	/**
 	 * 列出表/视图。

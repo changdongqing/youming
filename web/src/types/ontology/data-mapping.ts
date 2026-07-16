@@ -863,3 +863,11 @@ export interface TemplateImportRequest {
 	dataSourceId: number;
 	mappingCodeOverride?: string;
 }
+
+export interface SchemaPreviewRequest {
+	sourceType: string;
+	connectionMode: string;
+	connectionConfig: string;
+	username: string;
+	password: string;
+}
