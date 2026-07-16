@@ -115,13 +115,21 @@ public class PostgreSqlDataSourceConnector implements DataSourceConnector, DataS
 					? new String[] { query.objectType() }
 					: new String[] { "TABLE", "VIEW" };
 
+			// 注意：PG JDBC 42.7.x + PG18 的 DatabaseMetaData.getTables(schemaPattern,...)
+			// 在传入具体 schema 名时返回空结果集（驱动兼容性问题），故第一参数传 null
+			// 获取全部 schema 的对象，再在结果集中按 schemaName 过滤。
 			ResultSet rs = query.connection().getMetaData().getTables(
-					query.schemaName(), null, "%", types);
+					null, null, "%", types);
 
 			while (rs.next()) {
 				String schemaName = rs.getString("TABLE_SCHEM");
 				String objectName = rs.getString("TABLE_NAME");
 				String objectType = rs.getString("TABLE_TYPE");
+
+				// 按请求的 schemaName 过滤（替代 getTables 的 schemaPattern 参数）
+				if (query.schemaName() != null && !query.schemaName().equalsIgnoreCase(schemaName)) {
+					continue;
+				}
 
 				if (PostgreSqlDialect.isSystemSchema(schemaName)
 						|| PostgreSqlDialect.isSystemObject(objectName)) {
@@ -163,9 +171,14 @@ public class PostgreSqlDataSourceConnector implements DataSourceConnector, DataS
 			DatabaseMetaData metaData = ref.connection().getMetaData();
 
 			// 列
+			// 注意：PG JDBC 42.7.x + PG18 的 DatabaseMetaData 在传入具体 schema 名时
+			// 返回空结果集（驱动兼容性问题），故 schemaPattern 统一传 null，在结果集中过滤。
 			List<SourceObjectMetadataVO.ColumnMetadata> columns = new ArrayList<>();
-			ResultSet colRs = metaData.getColumns(ref.schemaName(), null, ref.objectName(), "%");
+			ResultSet colRs = metaData.getColumns(null, null, ref.objectName(), "%");
 			while (colRs.next()) {
+				if (!ref.schemaName().equalsIgnoreCase(colRs.getString("TABLE_SCHEM"))) {
+					continue;
+				}
 				SourceObjectMetadataVO.ColumnMetadata col = new SourceObjectMetadataVO.ColumnMetadata();
 				col.setName(colRs.getString("COLUMN_NAME"));
 				col.setJdbcType(colRs.getString("TYPE_NAME"));
@@ -179,17 +192,23 @@ public class PostgreSqlDataSourceConnector implements DataSourceConnector, DataS
 
 			// 主键
 			List<String> primaryKey = new ArrayList<>();
-			ResultSet pkRs = metaData.getPrimaryKeys(ref.schemaName(), null, ref.objectName());
+			ResultSet pkRs = metaData.getPrimaryKeys(null, null, ref.objectName());
 			while (pkRs.next()) {
+				if (!ref.schemaName().equalsIgnoreCase(pkRs.getString("TABLE_SCHEM"))) {
+					continue;
+				}
 				primaryKey.add(pkRs.getString("COLUMN_NAME"));
 			}
 			pkRs.close();
 
 			// 唯一键
 			List<SourceObjectMetadataVO.UniqueKey> uniqueKeys = new ArrayList<>();
-			ResultSet ukRs = metaData.getIndexInfo(ref.schemaName(), null, ref.objectName(), true, false);
+			ResultSet ukRs = metaData.getIndexInfo(null, null, ref.objectName(), true, false);
 			Map<String, List<String>> ukMap = new java.util.LinkedHashMap<>();
 			while (ukRs.next()) {
+				if (!ref.schemaName().equalsIgnoreCase(ukRs.getString("TABLE_SCHEM"))) {
+					continue;
+				}
 				String indexName = ukRs.getString("INDEX_NAME");
 				String columnName = ukRs.getString("COLUMN_NAME");
 				if (indexName != null && columnName != null) {
@@ -206,8 +225,11 @@ public class PostgreSqlDataSourceConnector implements DataSourceConnector, DataS
 
 			// 外键
 			List<SourceObjectMetadataVO.ForeignKey> foreignKeys = new ArrayList<>();
-			ResultSet fkRs = metaData.getImportedKeys(ref.schemaName(), null, ref.objectName());
+			ResultSet fkRs = metaData.getImportedKeys(null, null, ref.objectName());
 			while (fkRs.next()) {
+				if (!ref.schemaName().equalsIgnoreCase(fkRs.getString("FKTABLE_SCHEM"))) {
+					continue;
+				}
 				SourceObjectMetadataVO.ForeignKey fk = new SourceObjectMetadataVO.ForeignKey();
 				fk.setName(fkRs.getString("FK_NAME"));
 				fk.setTargetSchema(fkRs.getString("PKTABLE_SCHEM"));
@@ -223,8 +245,11 @@ public class PostgreSqlDataSourceConnector implements DataSourceConnector, DataS
 			Map<String, SourceObjectMetadataVO.ForeignKey> fkByName = foreignKeys.stream()
 				.collect(Collectors.toMap(SourceObjectMetadataVO.ForeignKey::getName, f -> f, (a, b) -> a));
 			if (!fkByName.isEmpty()) {
-				ResultSet fkColRs = metaData.getImportedKeys(ref.schemaName(), null, ref.objectName());
+				ResultSet fkColRs = metaData.getImportedKeys(null, null, ref.objectName());
 				while (fkColRs.next()) {
+					if (!ref.schemaName().equalsIgnoreCase(fkColRs.getString("FKTABLE_SCHEM"))) {
+						continue;
+					}
 					String fkName = fkColRs.getString("FK_NAME");
 					String fkCol = fkColRs.getString("FKCOLUMN_NAME");
 					String pkCol = fkColRs.getString("PKCOLUMN_NAME");
@@ -242,9 +267,12 @@ public class PostgreSqlDataSourceConnector implements DataSourceConnector, DataS
 			vo.setSchemaName(ref.schemaName());
 			vo.setObjectName(ref.objectName());
 			// 对象类型需要额外查询
-			ResultSet tableRs = metaData.getTables(ref.schemaName(), null, ref.objectName(), null);
-			if (tableRs.next()) {
-				vo.setObjectType(normalizeTableType(tableRs.getString("TABLE_TYPE")));
+			ResultSet tableRs = metaData.getTables(null, null, ref.objectName(), null);
+			while (tableRs.next()) {
+				if (ref.schemaName().equalsIgnoreCase(tableRs.getString("TABLE_SCHEM"))) {
+					vo.setObjectType(normalizeTableType(tableRs.getString("TABLE_TYPE")));
+					break;
+				}
 			}
 			tableRs.close();
 
