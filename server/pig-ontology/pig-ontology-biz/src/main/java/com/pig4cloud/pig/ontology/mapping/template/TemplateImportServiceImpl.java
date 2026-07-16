@@ -4,6 +4,7 @@
 
 package com.pig4cloud.pig.ontology.mapping.template;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pig4cloud.pig.ontology.mapping.datasource.entity.OntDataSource;
 import com.pig4cloud.pig.ontology.mapping.datasource.service.OntDataSourceService;
 import com.pig4cloud.pig.ontology.mapping.dto.EntityMappingCreateDTO;
@@ -41,6 +42,8 @@ import java.util.Map;
 public class TemplateImportServiceImpl implements TemplateImportService {
 
 	private final MappingTemplateLoader templateLoader;
+
+	private final ObjectMapper objectMapper;
 
 	private final OntMappingProjectService mappingProjectService;
 
@@ -173,7 +176,7 @@ public class TemplateImportServiceImpl implements TemplateImportService {
 		dto.setIncrementalColumn(em.getIncrementalColumn());
 		dto.setIncrementalType(em.getIncrementalType());
 		dto.setSourceDeleteFlagColumn(em.getSourceDeleteFlagColumn());
-		dto.setSourceDeleteValues(em.getSourceDeleteValues());
+		dto.setSourceDeleteValues(toJsonString(em.getSourceDeleteValues()));
 		dto.setDeleteStrategy(em.getDeleteStrategy());
 		dto.setInactivePropertyId(em.getInactivePropertyId());
 		dto.setInactiveLiteralValue(em.getInactiveLiteralValue());
@@ -224,6 +227,22 @@ public class TemplateImportServiceImpl implements TemplateImportService {
 		dto.setSyncOrder(rm.getSyncOrder());
 		dto.setRevision(0L);
 		return dto;
+	}
+
+	/**
+	 * 将对象序列化为 JSON 字符串，用于写入 jsonb 列（通过 StringToJsonbTypeHandler）。
+	 * @param obj 任意可序列化对象
+	 * @return JSON 字符串，obj 为 null 时返回 null
+	 */
+	private String toJsonString(Object obj) {
+		if (obj == null) {
+			return null;
+		}
+		try {
+			return objectMapper.writeValueAsString(obj);
+		} catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+			throw new IllegalStateException("序列化失败: " + obj, ex);
+		}
 	}
 
 }

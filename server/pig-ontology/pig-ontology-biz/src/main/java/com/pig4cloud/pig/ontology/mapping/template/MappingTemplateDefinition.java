@@ -4,6 +4,7 @@
 
 package com.pig4cloud.pig.ontology.mapping.template;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 
 import java.util.List;
@@ -16,6 +17,7 @@ import java.util.List;
  * @author youming
  */
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class MappingTemplateDefinition {
 
 	private String templateCode;
@@ -104,8 +106,13 @@ public class MappingTemplateDefinition {
 
 		private String sourceDeleteFlagColumn;
 
-		/** JSONB 字符串，格式如 ["1","-1"] */
-		private String sourceDeleteValues;
+	/**
+	 * 源删除标记值列表，如 ["1","-1"]。
+	 * <p>
+	 * JSON 中为原生数组（非字符串），故声明为 List&lt;String&gt;，避免 pig-common-xss 的全局 String
+	 * 反序列化器遇到 START_ARRAY 时返回 null 且不消费 token，导致后续字段解析错乱。
+	 */
+	private List<String> sourceDeleteValues;
 
 		private String deleteStrategy;
 
