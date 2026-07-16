@@ -76,3 +76,12 @@ mybatis-plus:
 # 查询以下前缀的表，不输出日志
 pig.mybatis.skip-table:
   - QRTZ_  #quartz 定时任务的表
+
+# ontology 安全加密配置（数据源凭证 AES-GCM 加密用）
+# 生产环境应通过环境变量或 KMS/HSM 注入，不得把根密钥提交到代码库
+ontology:
+  security:
+    crypto:
+      active-key-id: v1
+      keys:
+        v1: ${ONTOLOGY_CRYPTO_KEY_V1:gn/ArzN1VRn2Hgl7WXM5ESi0zTbVQHc8kkLx06sMRSA=}
