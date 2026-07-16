@@ -7,6 +7,16 @@
   "namespaceId": 930200,
   "extensionModuleId": 939002,
   "ontologyId": 935001,
+  "mappingProject": {
+    "mappingCode": "UPMS_ORGANIZATION",
+    "mappingName": "UPMS组织账号映射",
+    "ontologyId": 935001,
+    "defaultNamespaceId": 930200,
+    "ontologyVersionConstraint": ">=1.0.0",
+    "securityLevelCode": "INTERNAL",
+    "description": "youming UPMS用户/部门/岗位→组织账号扩展本体映射，首个自举验证场景",
+    "releaseNotes": "从模板upms-organization-v1初始化，含3个实体映射+4个关系映射"
+  },
   "excludedColumns": [
     "password", "salt", "wx_openid", "mini_openid", "qq_openid",
     "gitee_login", "osc_id", "wx_cp_userid", "wx_ding_userid",
@@ -22,7 +32,7 @@
       "targetEntityTypeCode": "OrganizationalUnit",
       "targetEntityTypeId": 942003,
       "targetNamespaceId": 930200,
-      "keyColumns": ["dept_id"],
+      "keyColumns": "[{\"column\":\"dept_id\",\"order\":1,\"normalizer\":\"LONG\"}]",
       "iriTemplate": "organization/{dept_id|url}",
       "labelTemplate": "{name}",
       "filter": null,
@@ -121,7 +131,7 @@
       "targetEntityTypeCode": "Position",
       "targetEntityTypeId": 942004,
       "targetNamespaceId": 930200,
-      "keyColumns": ["post_id"],
+      "keyColumns": "[{\"column\":\"post_id\",\"order\":1,\"normalizer\":\"LONG\"}]",
       "iriTemplate": "position/{post_id|url}",
       "labelTemplate": "{post_name}",
       "filter": null,
@@ -240,7 +250,7 @@
       "targetEntityTypeCode": "UserAccount",
       "targetEntityTypeId": 942002,
       "targetNamespaceId": 930200,
-      "keyColumns": ["user_id"],
+      "keyColumns": "[{\"column\":\"user_id\",\"order\":1,\"normalizer\":\"LONG\"}]",
       "iriTemplate": "user-account/{user_id|url}",
       "labelTemplate": "{name}",
       "filter": null,
@@ -383,15 +393,9 @@
       "objectEntityMappingCode": "DEPARTMENT",
       "sourceSchema": "public",
       "sourceObject": "sys_dept",
-      "subjectKeyMapping": {
-        "subjectKeyColumn": "dept_id",
-        "sourceColumn": "dept_id"
-      },
-      "objectKeyMapping": {
-        "objectKeyColumn": "dept_id",
-        "sourceColumn": "parent_id"
-      },
-      "relationKeyColumns": ["dept_id"],
+      "subjectKeyMapping": "{\"subject\":[{\"sourceColumn\":\"dept_id\",\"bindingKeyColumn\":\"dept_id\"}]}",
+      "objectKeyMapping": "{\"object\":[{\"sourceColumn\":\"parent_id\",\"bindingKeyColumn\":\"dept_id\"}]}",
+      "relationKeyColumns": "[\"dept_id\"]",
       "filter": "del_flag = '0' AND parent_id IS NOT NULL AND parent_id > 0",
       "missingTargetPolicy": "PENDING",
       "deleteStrategy": "REMOVE_ASSERTION",
@@ -408,15 +412,9 @@
       "objectEntityMappingCode": "DEPARTMENT",
       "sourceSchema": "public",
       "sourceObject": "sys_user",
-      "subjectKeyMapping": {
-        "subjectKeyColumn": "user_id",
-        "sourceColumn": "user_id"
-      },
-      "objectKeyMapping": {
-        "objectKeyColumn": "dept_id",
-        "sourceColumn": "dept_id"
-      },
-      "relationKeyColumns": ["user_id"],
+      "subjectKeyMapping": "{\"subject\":[{\"sourceColumn\":\"user_id\",\"bindingKeyColumn\":\"user_id\"}]}",
+      "objectKeyMapping": "{\"object\":[{\"sourceColumn\":\"dept_id\",\"bindingKeyColumn\":\"dept_id\"}]}",
+      "relationKeyColumns": "[\"user_id\"]",
       "filter": "del_flag = '0' AND dept_id IS NOT NULL AND dept_id > 0",
       "missingTargetPolicy": "PENDING",
       "deleteStrategy": "REMOVE_ASSERTION",
@@ -433,15 +431,9 @@
       "objectEntityMappingCode": "DEPARTMENT",
       "sourceSchema": "public",
       "sourceObject": "sys_user_dept",
-      "subjectKeyMapping": {
-        "subjectKeyColumn": "user_id",
-        "sourceColumn": "user_id"
-      },
-      "objectKeyMapping": {
-        "objectKeyColumn": "dept_id",
-        "sourceColumn": "dept_id"
-      },
-      "relationKeyColumns": ["user_id", "dept_id"],
+      "subjectKeyMapping": "{\"subject\":[{\"sourceColumn\":\"user_id\",\"bindingKeyColumn\":\"user_id\"}]}",
+      "objectKeyMapping": "{\"object\":[{\"sourceColumn\":\"dept_id\",\"bindingKeyColumn\":\"dept_id\"}]}",
+      "relationKeyColumns": "[\"user_id\",\"dept_id\"]",
       "filter": null,
       "missingTargetPolicy": "PENDING",
       "deleteStrategy": "REMOVE_ASSERTION",
@@ -459,15 +451,9 @@
       "objectEntityMappingCode": "POSITION",
       "sourceSchema": "public",
       "sourceObject": "sys_user_post",
-      "subjectKeyMapping": {
-        "subjectKeyColumn": "user_id",
-        "sourceColumn": "user_id"
-      },
-      "objectKeyMapping": {
-        "objectKeyColumn": "post_id",
-        "sourceColumn": "post_id"
-      },
-      "relationKeyColumns": ["user_id", "post_id"],
+      "subjectKeyMapping": "{\"subject\":[{\"sourceColumn\":\"user_id\",\"bindingKeyColumn\":\"user_id\"}]}",
+      "objectKeyMapping": "{\"object\":[{\"sourceColumn\":\"post_id\",\"bindingKeyColumn\":\"post_id\"}]}",
+      "relationKeyColumns": "[\"user_id\",\"post_id\"]",
       "filter": null,
       "missingTargetPolicy": "PENDING",
       "deleteStrategy": "REMOVE_ASSERTION",

@@ -41,6 +41,8 @@ import type {
 	JobQueryParams,
 	JobCreateRequest,
 	JobRetryRequest,
+	MappingTemplateSummary,
+	TemplateImportRequest,
 } from '/@/types/ontology/data-mapping';
 
 const BASE = '/admin/ontology/data-mapping';
@@ -108,6 +110,14 @@ export const mappingProjectApi = {
 	/** 新建映射工程 */
 	createProject: (data: MappingProjectCreateRequest) => {
 		return request<MappingProjectVO>({ url: `${BASE}/projects`, method: 'post', data });
+	},
+	/** 列出可用映射模板 */
+	listTemplates: () => {
+		return request<MappingTemplateSummary[]>({ url: `${BASE}/templates`, method: 'get' });
+	},
+	/** 从模板创建映射工程（含全部映射配置） */
+	createProjectFromTemplate: (data: TemplateImportRequest) => {
+		return request<MappingProjectVO>({ url: `${BASE}/projects/from-template`, method: 'post', data });
 	},
 	/** 修改映射工程 */
 	updateProject: (id: number, data: MappingProjectUpdateRequest) => {

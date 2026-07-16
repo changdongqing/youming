@@ -23,6 +23,9 @@
 				<el-button type="success" @click="handleAdd" v-auth="'ontology_mapping_project_admin'">
 					<el-icon><Plus /></el-icon> 新建工程
 				</el-button>
+				<el-button type="warning" @click="handleImportTemplate" v-auth="'ontology_mapping_edit'">
+					<el-icon><MagicStick /></el-icon> 从模板创建
+				</el-button>
 			</el-form-item>
 		</el-form>
 
@@ -77,6 +80,9 @@
 
 		<!-- ==================== 工程表单 ==================== -->
 		<MappingProjectFormDialog ref="formDialogRef" @success="loadData" />
+
+		<!-- ==================== 模板导入弹窗 ==================== -->
+		<TemplateImportDialog ref="templateDialogRef" @success="loadData" />
 
 		<!-- ==================== 版本历史抽屉 ==================== -->
 		<el-drawer v-model="versionHistoryVisible" :title="`版本历史 - ${selectedProject?.mappingName || ''}`" size="50%">
@@ -151,13 +157,14 @@
 <script lang="ts" setup>
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Search, Plus } from '@element-plus/icons-vue';
+import { Search, Plus, MagicStick } from '@element-plus/icons-vue';
 import { useMessage } from '/@/hooks/message';
 import { useRouter } from 'vue-router';
 import { mappingProjectApi, mappingJobApi } from '/@/api/ontology/data-mapping';
 import type { MappingProjectVO, MappingProjectQuery, MappingVersionVO } from '/@/types/ontology/data-mapping';
 import { projectStatusLabel, projectStatusTagType, versionStatusLabel, versionStatusTagType } from '../utils/mapping-status';
 import MappingProjectFormDialog from './MappingProjectFormDialog.vue';
+import TemplateImportDialog from './TemplateImportDialog.vue';
 import ScheduleDialog from './ScheduleDialog.vue';
 
 const { success: msgSuccess, error: msgError } = useMessage();
@@ -175,6 +182,7 @@ const query = reactive<MappingProjectQuery>({
 });
 
 const formDialogRef = ref();
+const templateDialogRef = ref();
 const scheduleDialogRef = ref();
 
 // 版本历史
@@ -217,6 +225,10 @@ const handleReset = () => {
 
 const handleAdd = () => {
 	formDialogRef.value?.openDialog();
+};
+
+const handleImportTemplate = () => {
+	templateDialogRef.value?.openDialog();
 };
 
 const handleEditDraft = (row: MappingProjectVO & { draftVersion?: MappingVersionVO }) => {

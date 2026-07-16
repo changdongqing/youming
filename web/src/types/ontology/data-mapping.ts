@@ -845,3 +845,21 @@ export interface JobRetryRequest {
 	mappingCode?: string;
 	maxErrorRate?: number;
 }
+
+// ==================== 模板导入 ====================
+
+export interface MappingTemplateSummary {
+	templateCode: string;
+	templateName: string;
+	description?: string;
+	version?: string;
+	namespacePrefix?: string;
+	entityMappingCount?: number;
+	relationMappingCount?: number;
+}
+
+export interface TemplateImportRequest {
+	templateCode: string;
+	dataSourceId: number;
+	mappingCodeOverride?: string;
+}

@@ -17,6 +17,9 @@ import com.pig4cloud.pig.ontology.mapping.project.service.OntMappingVersionServi
 import com.pig4cloud.pig.ontology.mapping.project.vo.MappingProjectVO;
 import com.pig4cloud.pig.ontology.mapping.project.vo.MappingVersionDiffVO;
 import com.pig4cloud.pig.ontology.mapping.project.vo.MappingVersionVO;
+import com.pig4cloud.pig.ontology.mapping.template.MappingTemplateSummary;
+import com.pig4cloud.pig.ontology.mapping.template.TemplateImportRequest;
+import com.pig4cloud.pig.ontology.mapping.template.TemplateImportService;
 import com.pig4cloud.pig.ontology.mapping.vo.PublishPrepareResultVO;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,6 +28,8 @@ import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * 映射工程与版本管理 API（18-03 §11）。
@@ -40,6 +45,8 @@ public class OntMappingProjectController {
 	private final OntMappingProjectService projectService;
 
 	private final OntMappingVersionService versionService;
+
+	private final TemplateImportService templateImportService;
 
 	// ==================== 工程管理 ====================
 
@@ -88,6 +95,21 @@ public class OntMappingProjectController {
 	public R<MappingProjectVO> updateProjectStatus(@PathVariable Long id,
 			@RequestParam String status) {
 		return R.ok(projectService.updateStatus(id, status));
+	}
+
+	// ==================== 模板导入 ====================
+
+	@GetMapping("/ontology/data-mapping/templates")
+	@HasPermission("ontology_mapping_view")
+	public R<List<MappingTemplateSummary>> listTemplates() {
+		return R.ok(templateImportService.listTemplates());
+	}
+
+	@PostMapping("/ontology/data-mapping/projects/from-template")
+	@SysLog("从模板创建映射工程")
+	@HasPermission("ontology_mapping_edit")
+	public R<MappingProjectVO> createProjectFromTemplate(@Valid @RequestBody TemplateImportRequest request) {
+		return R.ok(templateImportService.importTemplate(request));
 	}
 
 	// ==================== 版本管理 ====================
