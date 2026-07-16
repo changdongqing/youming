@@ -11,12 +11,11 @@ import com.pig4cloud.pig.ontology.security.entity.OntDataAccessLog;
 import com.pig4cloud.pig.ontology.security.mapper.OntDataAccessLogMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.Instant;
@@ -27,11 +26,12 @@ import java.util.UUID;
 /**
  * 数据访问审计服务。
  * <p>
- * 采用同步审计写入 + 异步事件通知双写模式：
+ * 采用同步审计写入 + 同步事件 Outbox 双写模式：
  * <ol>
- *   <li>同步落库：在业务事务内同步写入 ont_data_access_log，确保 Redis 不可用时不丢失合规记录</li>
- *   <li>异步事件：通过 OntDomainEventPublisher 发布 ONTOLOGY_SECURITY_EVENT，供已存在的 SecurityAuditEventHandler 消费</li>
+ *   <li>同步落库：在独立事务（REQUIRES_NEW）内同步写入 ont_data_access_log，确保 Redis 不可用时不丢失合规记录</li>
+ *   <li>同步事件：通过 OntDomainEventPublisher 追加 ONTOLOGY_SECURITY_EVENT 到 ont_event_outbox（Outbox 模式，与审计行同事务提交）</li>
  * </ol>
+ * 审计在独立事务执行，失败只回滚审计自身，不拖垮业务事务（避免 audit 失败导致业务写回滚）。
  * 秘密不进日志：Token、证书私钥、明文字段、完整受限查询结果不得进入审计日志。
  *
  * @author youming
@@ -50,7 +50,8 @@ public class DataAccessAuditService {
 	/**
 	 * 同步记录数据访问审计。
 	 * <p>
-	 * 在调用方事务内执行（Propagation.REQUIRED），确保审计与业务操作同事务提交/回滚。
+	 * 在独立事务内执行（Propagation.REQUIRES_NEW），审计写入失败只回滚审计自身，不拖垮调用方业务事务。
+	 * 事件 Outbox 行与审计行在同一事务提交。
 	 *
 	 * @param ontologyId       本体工程ID
 	 * @param userId           用户ID
@@ -66,7 +67,7 @@ public class DataAccessAuditService {
 	 * @param errorCode        错误码
 	 * @param traceId          追踪ID
 	 */
-	@Transactional(propagation = Propagation.REQUIRED)
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void recordAudit(Long ontologyId, Long userId, String username, String accessType,
 			String resourceType, String resourceRef, String actionSummary, Long resultCount,
 			String maxSecurityLevel, String decision, String outcome, String errorCode, String traceId) {
@@ -110,7 +111,7 @@ public class DataAccessAuditService {
 			// 5. 同步写入审计表
 			auditLogMapper.insert(auditLog);
 
-			// 6. 异步发布 ONTOLOGY_SECURITY_EVENT 事件（payload 不含敏感明文）
+			// 6. 同步追加 ONTOLOGY_SECURITY_EVENT 到 Outbox（payload 不含敏感明文）
 			publishSecurityEvent(auditLog);
 		}
 		catch (Exception e) {
@@ -120,11 +121,13 @@ public class DataAccessAuditService {
 	}
 
 	/**
-	 * 异步发布安全审计事件。
+	 * 同步发布安全审计事件到 Outbox。
 	 * <p>
+	 * 在 {@link #recordAudit} 的 REQUIRES_NEW 事务内调用，事件 Outbox 行与审计行同事务提交。
 	 * payload 只含资源 ID/IRI、决策结果、非敏感摘要。
+	 * 注意：不得标注 @Async —— {@link OntDomainEventPublisher#append} 使用 MANDATORY 传播，
+	 * 要求调用方已有事务；@Async 会脱离事务上下文导致 MANDATORY 抛异常。
 	 */
-	@Async
 	public void publishSecurityEvent(OntDataAccessLog auditLog) {
 		try {
 			Map<String, Object> payload = new HashMap<>(8);

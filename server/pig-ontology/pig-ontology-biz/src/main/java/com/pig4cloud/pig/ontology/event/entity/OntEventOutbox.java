@@ -11,6 +11,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.activerecord.Model;
+import com.pig4cloud.pig.common.data.handler.StringToJsonbTypeHandler;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -58,9 +59,11 @@ public class OntEventOutbox extends Model<OntEventOutbox> {
 	@Schema(description = "事件发生时间（UTC Instant）")
 	private LocalDateTime occurredAt;
 
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	@Schema(description = "事件负载JSONB，仅放消费所需最小信息")
 	private String payload;
 
+	@TableField(typeHandler = StringToJsonbTypeHandler.class)
 	@Schema(description = "事件元数据JSONB，如 targetConsumerGroup")
 	private String metadata;
 
