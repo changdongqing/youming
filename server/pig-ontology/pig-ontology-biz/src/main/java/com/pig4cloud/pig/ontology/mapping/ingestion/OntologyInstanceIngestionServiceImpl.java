@@ -13,12 +13,18 @@ import com.pig4cloud.pig.ontology.event.model.OntologyDomainEvent;
 import com.pig4cloud.pig.ontology.event.service.OntDomainEventPublisher;
 import com.pig4cloud.pig.ontology.mapper.OntEntityInstanceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntInstanceDataValueMapper;
+import com.pig4cloud.pig.ontology.mapper.OntInstanceObjectRelationMapper;
 import com.pig4cloud.pig.ontology.mapper.OntNamespaceMapper;
 import com.pig4cloud.pig.ontology.mapper.OntOntologyProjectMapper;
+import com.pig4cloud.pig.ontology.mapping.entity.OntPendingRelation;
 import com.pig4cloud.pig.ontology.mapping.integration.MappingEventFactory;
+import com.pig4cloud.pig.ontology.mapping.ingestion.entity.OntInstanceRelationProvenance;
 import com.pig4cloud.pig.ontology.mapping.ingestion.entity.OntInstanceValueProvenance;
 import com.pig4cloud.pig.ontology.mapping.ingestion.entity.OntSourceInstanceBinding;
+import com.pig4cloud.pig.ontology.mapping.ingestion.mapper.OntInstanceRelationProvenanceMapper;
 import com.pig4cloud.pig.ontology.mapping.ingestion.mapper.OntInstanceValueProvenanceMapper;
+import com.pig4cloud.pig.ontology.mapping.mapper.OntPendingRelationMapper;
+import com.pig4cloud.pig.ontology.entity.OntInstanceObjectRelation;
 import com.pig4cloud.pig.ontology.security.policy.SecuritySubjectResolver;
 import com.pig4cloud.pig.ontology.version.entity.OntOntologyVersion;
 import com.pig4cloud.pig.ontology.version.guard.WorkspaceStatusGuard;
@@ -71,6 +77,12 @@ public class OntologyInstanceIngestionServiceImpl implements OntologyInstanceIng
 	private final WorkspaceStatusGuard workspaceStatusGuard;
 
 	private final SecuritySubjectResolver securitySubjectResolver;
+
+	private final OntInstanceObjectRelationMapper objectRelationMapper;
+
+	private final OntInstanceRelationProvenanceMapper relationProvenanceMapper;
+
+	private final OntPendingRelationMapper pendingRelationMapper;
 
 	private static final String SOURCE_TYPE_DATA_MAPPING = "DATA_MAPPING";
 	private static final String DECLARATION_MODE_EXPLICIT = "EXPLICIT";
@@ -127,12 +139,98 @@ public class OntologyInstanceIngestionServiceImpl implements OntologyInstanceIng
 	@Override
 	@Transactional(rollbackFor = Exception.class)
 	public RelationIngestionResult upsertRelation(RelationIngestionCommand command) {
-		// V1 关系摄入由 18-05 关系模块详细实现，此处提供基础占位
-		// 完整实现需要 ont_instance_object_relation 和 ont_instance_relation_provenance 的联合操作
-		log.debug("upsertRelation: relationMappingCode={}", command.relationMappingCode());
-		return RelationIngestionResult.failed(
-			IngestionErrorCode.ONT_ING_001.code(),
-			"关系摄入由 18-05 模块实现，当前为摄入底座占位");
+		IngestionContext ctx = command.context();
+		SourceIdentity subjectIdentity = command.subjectIdentity();
+		SourceIdentity objectIdentity = command.objectIdentity();
+		String relationKeyHash = SourceIdentity.sha256Hex(command.sourceRelationKey());
+
+		// 1. 查主体 binding
+		OntSourceInstanceBinding subjectBinding = sourceBindingRepository.findByIdentityForUpdate(subjectIdentity);
+		if (subjectBinding == null || subjectBinding.getInstanceId() == null) {
+			// 主体缺失直接失败（主体必须是已摄入的实体）
+			return RelationIngestionResult.failed(IngestionErrorCode.ONT_ING_001.code(),
+					"主体实例未找到: " + subjectIdentity.entityMappingCode() + "/" + subjectIdentity.keyHash());
+		}
+		Long subjectInstanceId = subjectBinding.getInstanceId();
+
+		// 2. 查客体 binding
+		OntSourceInstanceBinding objectBinding = (objectIdentity != null)
+				? sourceBindingRepository.findByIdentityForUpdate(objectIdentity) : null;
+
+		// 3. 客体缺失 → 挂起 pending
+		if (objectBinding == null || objectBinding.getInstanceId() == null) {
+			OntPendingRelation pending = new OntPendingRelation();
+			pending.setMappingProjectId(subjectIdentity.mappingProjectId());
+			pending.setMappingVersionId(subjectIdentity.mappingVersionId());
+			pending.setRelationMappingCode(command.relationMappingCode());
+			pending.setSourceId(subjectIdentity.sourceId());
+			pending.setSourceRelationKey(command.sourceRelationKey());
+			pending.setSourceRelationKeyHash(relationKeyHash);
+			pending.setSubjectEntityMappingCode(subjectIdentity.entityMappingCode());
+			pending.setSubjectRecordKey(subjectIdentity.sourceRecordKey());
+			pending.setSubjectRecordKeyHash(subjectIdentity.keyHash());
+			if (objectIdentity != null) {
+				pending.setObjectEntityMappingCode(objectIdentity.entityMappingCode());
+				pending.setObjectRecordKey(objectIdentity.sourceRecordKey());
+				pending.setObjectRecordKeyHash(objectIdentity.keyHash());
+			}
+			pending.setPendingReason("OBJECT_MISSING");
+			pending.setPendingStatus("PENDING");
+			pending.setRetryCount(0);
+			pending.setFirstJobId(ctx != null ? ctx.getJobId() : null);
+			pending.setLastJobId(ctx != null ? ctx.getJobId() : null);
+			pendingRelationMapper.insert(pending);
+			log.debug("关系挂起（客体缺失）: relation={}, subject={}, object={}",
+					command.relationMappingCode(), subjectIdentity.keyHash(),
+					objectIdentity != null ? objectIdentity.keyHash() : "null");
+			return RelationIngestionResult.pending();
+		}
+		Long objectInstanceId = objectBinding.getInstanceId();
+
+		// 4. 查是否已存在同一关系断言（幂等）
+		OntInstanceObjectRelation existing = objectRelationMapper.selectOne(
+				Wrappers.<OntInstanceObjectRelation>lambdaQuery()
+						.eq(OntInstanceObjectRelation::getSubjectInstanceId, subjectInstanceId)
+						.eq(OntInstanceObjectRelation::getObjectPropertyId, command.objectPropertyId())
+						.eq(OntInstanceObjectRelation::getObjectInstanceId, objectInstanceId)
+						.eq(OntInstanceObjectRelation::getDelFlag, "0")
+						.last("LIMIT 1"));
+		if (existing != null) {
+			log.debug("关系已存在（幂等跳过）: relation={}, relationId={}",
+					command.relationMappingCode(), existing.getId());
+			return RelationIngestionResult.unchanged(existing.getId());
+		}
+
+		// 5. 新建关系断言
+		OntInstanceObjectRelation relation = new OntInstanceObjectRelation();
+		relation.setSubjectInstanceId(subjectInstanceId);
+		relation.setObjectPropertyId(command.objectPropertyId());
+		relation.setObjectKind("INSTANCE");
+		relation.setObjectInstanceId(objectInstanceId);
+		relation.setSortOrder(0);
+		relation.setAssertionOrigin(SOURCE_TYPE_DATA_MAPPING);
+		objectRelationMapper.insert(relation);
+
+		// 6. 写关系来源溯源
+		OntInstanceRelationProvenance provenance = new OntInstanceRelationProvenance();
+		provenance.setRelationId(relation.getId());
+		provenance.setMappingProjectId(subjectIdentity.mappingProjectId());
+		provenance.setSubjectBindingId(subjectBinding.getId());
+		provenance.setObjectBindingId(objectBinding.getId());
+		provenance.setMappingVersionId(subjectIdentity.mappingVersionId());
+		provenance.setRelationMappingCode(command.relationMappingCode());
+		provenance.setOwnershipPolicy(
+				command.ownershipPolicy() != null ? command.ownershipPolicy().name() : OwnershipPolicy.SOURCE_WINS.name());
+		provenance.setProvenanceStatus(PROVENANCE_STATUS_ACTIVE);
+		provenance.setSourceRelationKey(command.sourceRelationKey());
+		provenance.setSourceRelationKeyHash(relationKeyHash);
+		provenance.setLastJobId(ctx != null ? ctx.getJobId() : null);
+		provenance.setGeneratedAt(LocalDateTime.now());
+		relationProvenanceMapper.insert(provenance);
+
+		log.debug("关系摄入成功（新建）: relationId={}, subject={}, object={}, predicate={}",
+				relation.getId(), subjectInstanceId, objectInstanceId, command.objectPropertyId());
+		return RelationIngestionResult.created(relation.getId(), provenance.getId());
 	}
 
 	// ==================== deactivateEntity ====================

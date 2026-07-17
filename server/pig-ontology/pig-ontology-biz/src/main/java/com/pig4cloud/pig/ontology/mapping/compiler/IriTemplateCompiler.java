@@ -179,8 +179,9 @@ public class IriTemplateCompiler {
 		}
 
 		List<String> columns = new ArrayList<>();
-		// 简单解析：提取 "column":"xxx" 的值
-		Matcher matcher = Pattern.compile("\"column\"\\s*:\\s*\"([^\"]+)\"").matcher(keyColumnsJson);
+		// 匹配 "column" 或 "sourceColumn" 字段值，
+		// 兼容 entity_mapping.key_columns（用 "column"）和 relation_mapping.subject/object_key_mapping（用 "sourceColumn"）
+		Matcher matcher = Pattern.compile("\"(?:source)?[Cc]olumn\"\\s*:\\s*\"([^\"]+)\"").matcher(keyColumnsJson);
 		while (matcher.find()) {
 			columns.add(matcher.group(1));
 		}

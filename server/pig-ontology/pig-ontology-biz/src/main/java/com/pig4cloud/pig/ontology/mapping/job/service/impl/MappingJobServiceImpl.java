@@ -753,14 +753,20 @@ public class MappingJobServiceImpl extends ServiceImpl<OntMappingJobMapper, OntM
 		DataSourceCredentialCryptoService.DataSourceCredential credential = decryptCredential(dataSource);
 		String jdbcUrl = buildJdbcUrl(dataSource);
 
-		// 解析关系键映射，获取主体和客体键列
-		List<String> subjectKeyColumns = iriTemplateCompiler.extractKeyColumnNames(rm.getSubjectKeyMapping());
-		List<String> objectKeyColumns = iriTemplateCompiler.extractKeyColumnNames(rm.getObjectKeyMapping());
+		// 解析关系键映射：sourceColumn → bindingKeyColumn
+		List<KeyColumnMapping> subjectKeyMappings = extractKeyMappings(rm.getSubjectKeyMapping());
+		List<KeyColumnMapping> objectKeyMappings = extractKeyMappings(rm.getObjectKeyMapping());
 
-		List<String> columns = new ArrayList<>(subjectKeyColumns);
-		for (String col : objectKeyColumns) {
-			if (!columns.contains(col)) {
-				columns.add(col);
+		// 扫描需要的列 = 主体 sourceColumn + 客体 sourceColumn
+		List<String> columns = new ArrayList<>();
+		for (KeyColumnMapping km : subjectKeyMappings) {
+			if (!columns.contains(km.sourceColumn())) {
+				columns.add(km.sourceColumn());
+			}
+		}
+		for (KeyColumnMapping km : objectKeyMappings) {
+			if (!columns.contains(km.sourceColumn())) {
+				columns.add(km.sourceColumn());
 			}
 		}
 
@@ -798,25 +804,31 @@ public class MappingJobServiceImpl extends ServiceImpl<OntMappingJobMapper, OntM
 					Map<String, String> rowValues = toStringMap(row.values());
 					counters.totalRelations++;
 
-					// 构建主体和客体 SourceIdentity
-					LinkedHashMap<String, String> subjectKeyPairs = new LinkedHashMap<>();
-					for (String col : subjectKeyColumns) {
-						subjectKeyPairs.put(col, rowValues.getOrDefault(col, ""));
-					}
-					LinkedHashMap<String, String> objectKeyPairs = new LinkedHashMap<>();
-					for (String col : objectKeyColumns) {
-						objectKeyPairs.put(col, rowValues.getOrDefault(col, ""));
-					}
+				// 构建主体 SourceIdentity（用 bindingKeyColumn 作 key，sourceColumn 的值）
+				LinkedHashMap<String, String> subjectKeyPairs = new LinkedHashMap<>();
+				for (KeyColumnMapping km : subjectKeyMappings) {
+					subjectKeyPairs.put(km.bindingKeyColumn(), rowValues.getOrDefault(km.sourceColumn(), ""));
+				}
+				// 构建客体 SourceIdentity（用客体 entityMapping 的 bindingKeyColumn 作 key）
+				LinkedHashMap<String, String> objectKeyPairs = new LinkedHashMap<>();
+				for (KeyColumnMapping km : objectKeyMappings) {
+					objectKeyPairs.put(km.bindingKeyColumn(), rowValues.getOrDefault(km.sourceColumn(), ""));
+				}
 
-					SourceIdentity subjectIdentity = new SourceIdentity(
-							rm.getSourceId(), project.getId(), job.getMappingVersionId(),
-							subjectEm.getMappingCode(), rm.getSourceObject(),
-							SourceIdentity.buildRecordKey(subjectKeyPairs));
+				SourceIdentity subjectIdentity = new SourceIdentity(
+						rm.getSourceId(), project.getId(), job.getMappingVersionId(),
+						subjectEm.getMappingCode(), rm.getSourceObject(),
+						SourceIdentity.buildRecordKey(subjectKeyPairs));
 
-					SourceIdentity objectIdentity = new SourceIdentity(
-							rm.getSourceId(), project.getId(), job.getMappingVersionId(),
-							subjectEm.getMappingCode(), rm.getSourceObject(),
-							SourceIdentity.buildRecordKey(objectKeyPairs));
+				// 客体 entityMapping（获取 mappingCode 用于查 binding）
+				OntEntityMapping objectEm = entityMappingMapper.selectById(rm.getObjectEntityMappingId());
+				String objectMappingCode = (objectEm != null && !"1".equals(objectEm.getDelFlag()))
+						? objectEm.getMappingCode() : subjectEm.getMappingCode();
+
+				SourceIdentity objectIdentity = new SourceIdentity(
+						rm.getSourceId(), project.getId(), job.getMappingVersionId(),
+						objectMappingCode, objectEm != null ? objectEm.getSourceObject() : rm.getSourceObject(),
+						SourceIdentity.buildRecordKey(objectKeyPairs));
 
 					com.pig4cloud.pig.ontology.mapping.ingestion.RelationIngestionCommand cmd =
 							new com.pig4cloud.pig.ontology.mapping.ingestion.RelationIngestionCommand(
@@ -1529,6 +1541,49 @@ public class MappingJobServiceImpl extends ServiceImpl<OntMappingJobMapper, OntM
 			return null;
 		}
 		return value.length() > maxLen ? value.substring(0, maxLen) : value;
+	}
+
+	/**
+	 * 关系键列映射：源列名 → 绑定键列名。
+	 * <p>
+	 * 关系映射的 subject_key_mapping / object_key_mapping JSON 形如：
+	 * {@code {"subject": [{"sourceColumn": "dept_id", "bindingKeyColumn": "dept_id"}]}}
+	 * <p>
+	 * sourceColumn 是源表里的列；bindingKeyColumn 是实体映射建 binding 时用的列名。
+	 * 构造 SourceIdentity 时必须用 bindingKeyColumn 作 key，才能匹配到已有 binding。
+	 */
+	record KeyColumnMapping(String sourceColumn, String bindingKeyColumn) {
+	}
+
+	/**
+	 * 从关系键映射 JSON 提取 sourceColumn → bindingKeyColumn 对。
+	 */
+	private List<KeyColumnMapping> extractKeyMappings(String keyMappingJson) {
+		if (keyMappingJson == null || keyMappingJson.isBlank()) {
+			return List.of();
+		}
+		List<KeyColumnMapping> result = new ArrayList<>();
+		// 匹配 {"sourceColumn": "xxx", "bindingKeyColumn": "yyy"} 形式
+		java.util.regex.Matcher scMatcher = java.util.regex.Pattern
+				.compile("\"sourceColumn\"\\s*:\\s*\"([^\"]+)\"").matcher(keyMappingJson);
+		java.util.regex.Matcher bcMatcher = java.util.regex.Pattern
+				.compile("\"bindingKeyColumn\"\\s*:\\s*\"([^\"]+)\"").matcher(keyMappingJson);
+		List<String> sourceColumns = new ArrayList<>();
+		List<String> bindingColumns = new ArrayList<>();
+		while (scMatcher.find()) {
+			sourceColumns.add(scMatcher.group(1));
+		}
+		while (bcMatcher.find()) {
+			bindingColumns.add(bcMatcher.group(1));
+		}
+		// 按顺序配对；若 bindingKeyColumn 缺失则回退为 sourceColumn
+		int size = Math.max(sourceColumns.size(), bindingColumns.size());
+		for (int i = 0; i < size; i++) {
+			String sc = i < sourceColumns.size() ? sourceColumns.get(i) : (i < bindingColumns.size() ? bindingColumns.get(i) : "");
+			String bc = i < bindingColumns.size() ? bindingColumns.get(i) : sc;
+			result.add(new KeyColumnMapping(sc, bc));
+		}
+		return result;
 	}
 
 	private MappingJobVO toVO(OntMappingJob job) {
