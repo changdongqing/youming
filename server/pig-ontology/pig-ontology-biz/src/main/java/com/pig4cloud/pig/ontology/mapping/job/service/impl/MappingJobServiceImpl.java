@@ -636,12 +636,14 @@ public class MappingJobServiceImpl extends ServiceImpl<OntMappingJobMapper, OntM
 
 			values.add(new com.pig4cloud.pig.ontology.mapping.ingestion.ValueIngestionItem(
 					fm.getFieldMappingCode(), fm.getTargetDataPropertyId(),
-					value, fm.getConstantLiteralType(), fm.getConstantUnitId(),
+					value,
+					fm.getConstantLiteralType() != null ? fm.getConstantLiteralType() : "STRING",
+					fm.getConstantUnitId(),
 					null, fm.getSortOrder(),
 					OwnershipPolicy.valueOf(em.getConflictPolicy()),
 					fm.getSourceKind(),
 					"COLUMN".equals(fm.getSourceKind()) ? fm.getSourceColumn() : "CONSTANT",
-					null));
+					SourceIdentity.sha256Hex(value)));
 		}
 
 		// 内容哈希
@@ -1503,7 +1505,7 @@ public class MappingJobServiceImpl extends ServiceImpl<OntMappingJobMapper, OntM
 		String joined = values.entrySet().stream()
 				.map(e -> e.getKey() + "=" + (e.getValue() != null ? e.getValue() : ""))
 				.collect(Collectors.joining("&"));
-		return SourceIdentity.buildRecordKey(new LinkedHashMap<>(values));
+		return SourceIdentity.sha256Hex(joined);
 	}
 
 	private Instant parseInstant(String value) {

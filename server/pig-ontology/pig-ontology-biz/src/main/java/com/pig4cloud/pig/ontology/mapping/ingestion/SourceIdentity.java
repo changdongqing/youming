@@ -67,7 +67,14 @@ public record SourceIdentity(
 			.encodeToString(value.getBytes(StandardCharsets.UTF_8));
 	}
 
-	private static String sha256Hex(String input) {
+	/**
+	 * 计算输入字符串的 SHA-256 哈希（小写十六进制，64 字符）。
+	 * <p>
+	 * 供内容哈希、键哈希等场景复用。
+	 * @param input 输入字符串
+	 * @return 64 字符小写十六进制哈希
+	 */
+	public static String sha256Hex(String input) {
 		try {
 			MessageDigest digest = MessageDigest.getInstance("SHA-256");
 			byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));

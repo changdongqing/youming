@@ -122,13 +122,17 @@ public class MappingValidationServiceImpl
 		OntMappingProject project = projectMapper.selectById(version.getMappingProjectId());
 		OntOntologyProject ontologyProject = ontologyProjectMapper.selectById(project.getOntologyId());
 
-		// 3. 创建报告（RUNNING）
-		OntMappingValidationReport report = createRunningReport(version, project, ontologyProject, triggerType);
-		baseMapper.insert(report);
-
+		// 3. 报告引用（在 try 外声明，便于 catch 中回退状态）
+		OntMappingValidationReport report = null;
 		try {
-			// 4. 构建校验上下文
+			// 3a. 构建校验上下文（含 candidateConfigHash，报告插入需要该值）
 			MappingValidationContext context = buildContext(version, project, ontologyProject);
+
+			// 3b. 创建报告（RUNNING），填入候选配置哈希与元数据摘要
+			report = createRunningReport(version, project, ontologyProject, triggerType);
+			report.setCandidateConfigHash(context.getCandidateConfigHash());
+			report.setMetadataHashSummary(context.getMetadataHashSummary());
+			baseMapper.insert(report);
 
 			// 5. 执行校验器
 			IssueCollector issues = new IssueCollector();
@@ -174,9 +178,12 @@ public class MappingValidationServiceImpl
 			// 异常时回退状态
 			log.error("Validation failed unexpectedly, rolling back version status: versionId={}", versionId, e);
 			versionMapper.casUpdateStatus(versionId, "VALIDATING", "DRAFT", version.getRevision());
-			report.setReportStatus("FAILED");
-			report.setCompletedAt(LocalDateTime.now());
-			baseMapper.updateById(report);
+			// report 可能为 null（buildContext 在 insert 之前抛异常时）
+			if (report != null) {
+				report.setReportStatus("FAILED");
+				report.setCompletedAt(LocalDateTime.now());
+				baseMapper.updateById(report);
+			}
 			throw e;
 		}
 
@@ -279,20 +286,13 @@ public class MappingValidationServiceImpl
 					+ ": 校验报告状态非 PASSED: " + report.getReportStatus());
 		}
 
-		// 4. violationCount 必须为 0
+		// 4. violationCount 必须为 0（WARNING 仅作提示，不阻断发布）
 		if (report.getViolationCount() != null && report.getViolationCount() > 0) {
 			throw new IllegalStateException(ValidationErrorCode.ONT_MAP_211.getMessage()
 					+ ": 存在 " + report.getViolationCount() + " 个 VIOLATION");
 		}
 
-		// 5. 所有 WARNING 必须已确认
-		int unacknowledgedWarnings = issueMapper.countUnacknowledgedWarnings(report.getId());
-		if (unacknowledgedWarnings > 0) {
-			throw new IllegalStateException(ValidationErrorCode.ONT_MAP_209.getMessage()
-					+ ": 存在 " + unacknowledgedWarnings + " 个未确认 WARNING");
-		}
-
-		// 6. config revision 必须与报告一致
+		// 5. config revision 必须与报告一致
 		if (version.getRevision() != null && report.getConfigRevision() != null
 				&& !version.getRevision().equals(report.getConfigRevision())) {
 			throw new IllegalStateException(ValidationErrorCode.ONT_MAP_210.getMessage()
@@ -433,6 +433,11 @@ public class MappingValidationServiceImpl
 		version.setValidationReportId(report.getId());
 		version.setValidationSummary(report.getSummaryJson());
 		versionMapper.updateById(version);
+
+		// 同步报告的 configRevision 为校验通过后的最终版本 revision，
+		// 避免 CAS 状态转换（VALIDATING→VALIDATED 递增 revision）导致发布门禁误判报告已过期
+		report.setConfigRevision(version.getRevision());
+		baseMapper.updateById(report);
 	}
 
 	private String computeMetadataHashSummary(Map<Long, List<OntDataSourceMetadata>> metadataMap) {

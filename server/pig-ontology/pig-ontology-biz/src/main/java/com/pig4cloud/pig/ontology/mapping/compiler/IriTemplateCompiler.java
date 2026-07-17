@@ -107,6 +107,8 @@ public class IriTemplateCompiler {
 			return "";
 		}
 
+		// 使用 appendReplacement/appendTail 保留模板中的字面量文本，
+		// 只替换 {变量} 部分，避免丢掉 organization/ 等前缀导致不同实体 IRI 碰撞
 		StringBuffer result = new StringBuffer();
 		Matcher matcher = VARIABLE_PATTERN.matcher(template);
 		while (matcher.find()) {
@@ -131,8 +133,11 @@ public class IriTemplateCompiler {
 				value = applyFilter(value, filter);
 			}
 
-			result.append(value);
+			// 转义 $ 和 \ 以免被 appendReplacement 当作反向引用
+			String replacement = value.replace("\\", "\\\\").replace("$", "\\$");
+			matcher.appendReplacement(result, replacement);
 		}
+		matcher.appendTail(result);
 
 		return result.toString();
 	}

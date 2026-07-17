@@ -92,10 +92,10 @@
 import { ref, reactive, computed } from 'vue';
 import { useMessage } from '/@/hooks/message';
 import { mappingValidationApi } from '/@/api/ontology/data-mapping';
-import type { ValidationReportVO, ValidationIssueVO } from '/@/types/ontology/data-mapping';
+import type { ValidationReportVO, ValidationIssueVO, MappingVersionVO } from '/@/types/ontology/data-mapping';
 import { reportStatusLabel, reportStatusTagType, severityLabel, severityTagType } from '../utils/mapping-status';
 
-const props = defineProps<{ versionId: number; currentRevision?: number }>();
+const props = defineProps<{ versionId: number; currentRevision?: number; version?: MappingVersionVO | null }>();
 const emit = defineEmits<{ (e: 'validated', report: ValidationReportVO): void }>();
 
 const { success: msgSuccess, error: msgError } = useMessage();
@@ -120,11 +120,33 @@ const isReportStale = computed(() => {
 	return report.value.configRevision !== props.currentRevision;
 });
 
-const open = async () => {
+const open = async (forceValidate = false) => {
 	visible.value = true;
 	report.value = null;
 	issueList.value = [];
+
+	// 只读模式：版本已有校验报告且非强制重新校验时，直接加载已有报告，
+	// 避免对 VALIDATED/VALIDATING 等非 DRAFT 状态重复触发校验而报错
+	const existingReportId = props.version?.validationReportId;
+	if (!forceValidate && existingReportId) {
+		await loadExistingReport(existingReportId);
+		return;
+	}
 	await runValidation();
+};
+
+const loadExistingReport = async (reportId: number) => {
+	loading.value = true;
+	try {
+		const { data } = await mappingValidationApi.getReport(reportId);
+		report.value = data;
+		await loadIssues();
+	} catch (e: any) {
+		// 已有报告加载失败则回退到重新校验
+		await runValidation();
+	} finally {
+		loading.value = false;
+	}
 };
 
 const runValidation = async () => {

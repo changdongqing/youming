@@ -60,7 +60,7 @@
 					<el-button link type="primary" @click="handleEditDraft(row)" v-if="row.draftVersion" v-auth="'ontology_mapping_edit'">
 						编辑DRAFT
 					</el-button>
-					<el-button link type="primary" @click="handleCreateVersion(row)" v-auth="'ontology_mapping_publish'">下一版本</el-button>
+					<el-button link type="primary" @click="handleCreateVersion(row)" v-if="row.activeVersionId && !row.draftVersion" v-auth="'ontology_mapping_publish'">下一版本</el-button>
 					<el-button link type="primary" @click="handleVersionHistory(row)">版本历史</el-button>
 					<el-button link type="warning" @click="handleToggleStatus(row)" v-auth="'ontology_mapping_project_admin'">
 						{{ row.projectStatus === 'ACTIVE' ? '停用' : '启用' }}

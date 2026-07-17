@@ -27,6 +27,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
 /**
  * 映射工程服务实现（18-03 §8）。
  *
@@ -63,7 +70,9 @@ public class OntMappingProjectServiceImpl extends ServiceImpl<OntMappingProjectM
 						.orderByDesc(OntMappingProject::getCreateTime));
 
 		Page<MappingProjectVO> voPage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
-		voPage.setRecords(result.getRecords().stream().map(this::toVO).toList());
+		List<MappingProjectVO> voRecords = result.getRecords().stream().map(this::toVO).toList();
+		fillVersionSummaries(voRecords);
+		voPage.setRecords(voRecords);
 		return voPage;
 	}
 
@@ -346,6 +355,61 @@ public class OntMappingProjectServiceImpl extends ServiceImpl<OntMappingProjectM
 		summary.setPublishedAt(version.getPublishedAt());
 		summary.setCreateTime(version.getCreateTime());
 		return summary;
+	}
+
+	/**
+	 * 批量填充列表 VO 的 activeVersion / draftVersion 摘要，避免逐条 N+1 查询。
+	 * <p>
+	 * 草稿版本取每个工程最近创建的一条 DRAFT/VALIDATING/VALIDATED 记录，与 {@link #getDetail} 单条口径保持一致。
+	 */
+	private void fillVersionSummaries(List<MappingProjectVO> voRecords) {
+		if (voRecords == null || voRecords.isEmpty()) {
+			return;
+		}
+
+		// 1) 活跃版本：按 activeVersionId 批量取
+		List<Long> activeVersionIds = voRecords.stream()
+				.map(MappingProjectVO::getActiveVersionId)
+				.filter(Objects::nonNull)
+				.distinct()
+				.toList();
+		Map<Long, OntMappingVersion> activeVersionMap = activeVersionIds.isEmpty()
+				? Collections.emptyMap()
+				: versionMapper.selectBatchIds(activeVersionIds).stream()
+						.filter(v -> "0".equals(v.getDelFlag()))
+						.collect(Collectors.toMap(OntMappingVersion::getId, v -> v, (a, b) -> a));
+
+		// 2) 草稿版本：按 projectId 批量取 DRAFT/VALIDATING/VALIDATED 记录，组内取最新
+		List<Long> projectIds = voRecords.stream()
+				.map(MappingProjectVO::getId)
+				.filter(Objects::nonNull)
+				.toList();
+		Map<Long, OntMappingVersion> draftVersionMap = new HashMap<>();
+		if (!projectIds.isEmpty()) {
+			List<OntMappingVersion> drafts = versionMapper.selectList(Wrappers.<OntMappingVersion>lambdaQuery()
+					.in(OntMappingVersion::getMappingProjectId, projectIds)
+					.eq(OntMappingVersion::getDelFlag, "0")
+					.in(OntMappingVersion::getVersionStatus, "DRAFT", "VALIDATING", "VALIDATED")
+					.orderByDesc(OntMappingVersion::getCreateTime));
+			// 按 createTime 降序后第一条即为最新，组内去重保留首条
+			for (OntMappingVersion draft : drafts) {
+				draftVersionMap.putIfAbsent(draft.getMappingProjectId(), draft);
+			}
+		}
+
+		// 3) 回填 VO
+		for (MappingProjectVO vo : voRecords) {
+			if (vo.getActiveVersionId() != null) {
+				OntMappingVersion active = activeVersionMap.get(vo.getActiveVersionId());
+				if (active != null) {
+					vo.setActiveVersion(toVersionSummary(active));
+				}
+			}
+			OntMappingVersion draft = draftVersionMap.get(vo.getId());
+			if (draft != null) {
+				vo.setDraftVersion(toVersionSummary(draft));
+			}
+		}
 	}
 
 }

@@ -128,6 +128,7 @@
 			ref="validationDrawerRef"
 			:version-id="version?.id || 0"
 			:current-revision="version?.revision"
+			:version="version"
 			@validated="handleValidated"
 		/>
 		<VersionHistoryDrawer
@@ -201,8 +202,8 @@ const relationWizardRef = ref();
 const canEdit = computed(() => (version.value ? isEditableStatus(version.value.versionStatus) : false));
 
 const loadProjectAndVersion = async () => {
-	const projectId = Number(route.query.projectId);
-	const versionId = Number(route.query.versionId);
+	const projectId = String(route.query.projectId || '');
+	const versionId = String(route.query.versionId || '');
 	if (!projectId || !versionId) {
 		msgError('缺少 projectId 或 versionId 参数');
 		return;
@@ -296,7 +297,7 @@ const handleSave = () => {
 };
 
 const handleValidate = () => {
-	validationDrawerRef.value?.open();
+	validationDrawerRef.value?.open(true);
 };
 
 const handleValidated = () => {
