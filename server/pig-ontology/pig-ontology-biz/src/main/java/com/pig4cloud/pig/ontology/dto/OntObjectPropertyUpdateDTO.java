@@ -86,4 +86,7 @@ public class OntObjectPropertyUpdateDTO {
 	@Schema(description = "平台治理备注")
 	private String remarks;
 
+	@Schema(description = "推理能力契约，可选，取值受ReasonerCapability枚举约束")
+	private List<String> inferenceSupport;
+
 }

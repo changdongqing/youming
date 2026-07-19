@@ -11,11 +11,13 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.activerecord.Model;
+import com.pig4cloud.pig.common.data.handler.StringListToJsonbTypeHandler;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 对象属性。
@@ -23,7 +25,7 @@ import java.time.LocalDateTime;
  * @author youming
  */
 @Data
-@TableName("ont_object_property")
+@TableName(value = "ont_object_property", autoResultMap = true)
 @Schema(description = "对象属性")
 @EqualsAndHashCode(callSuper = true)
 public class OntObjectProperty extends Model<OntObjectProperty> {
@@ -63,6 +65,10 @@ public class OntObjectProperty extends Model<OntObjectProperty> {
 
 	@Schema(description = "来源类型")
 	private String sourceType;
+
+	@Schema(description = "推理引擎实际支持的能力子集，取值受ReasonerCapability枚举约束")
+	@TableField(typeHandler = StringListToJsonbTypeHandler.class)
+	private List<String> inferenceSupport;
 
 	@Schema(description = "来源引用")
 	private String sourceReference;

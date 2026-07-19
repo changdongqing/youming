@@ -36,4 +36,7 @@ public class OntObjectPropertySummaryVO {
 	@Schema(description = "逆属性中文标签")
 	private String inversePropertyLabel;
 
+	@Schema(description = "推理能力契约")
+	private List<String> inferenceSupport;
+
 }

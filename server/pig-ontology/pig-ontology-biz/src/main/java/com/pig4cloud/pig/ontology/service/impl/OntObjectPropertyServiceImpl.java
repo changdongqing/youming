@@ -87,7 +87,11 @@ public class OntObjectPropertyServiceImpl extends ServiceImpl<OntObjectPropertyM
 
 	private static final Pattern NAME_PATTERN = Pattern.compile("^[a-z][a-zA-Z0-9]*$");
 
-	private static final Pattern LOCAL_NAME_PATTERN = Pattern.compile("^[a-zA-Z][a-zA-Z0-9_]*$");
+		private static final Pattern LOCAL_NAME_PATTERN = Pattern.compile("^[a-zA-Z][a-zA-Z0-9_]*$");
+
+	/** 本期引擎已实现的推理能力子集 */
+	private static final Set<String> IMPLEMENTED_CAPABILITIES = Set.of("DISJOINT_CHECK", "FUNCTIONAL_CHECK",
+			"SUBCLASS_INFERENCE");
 
 	private final OntObjectPropertyDomainMapper domainMapper;
 
@@ -156,7 +160,20 @@ public class OntObjectPropertyServiceImpl extends ServiceImpl<OntObjectPropertyM
 			}
 		}
 		detail.setSemanticWarnings(computeSemanticWarnings(prop, detail.getDomains(), detail.getRanges()));
+		detail.setInferenceSupport(prop.getInferenceSupport());
 		return detail;
+	}
+
+	@Override
+	public List<OntObjectPropertySummaryVO> listByCapability(String capability) {
+		if (!IMPLEMENTED_CAPABILITIES.contains(capability)) {
+			return List.of();
+		}
+		List<OntObjectProperty> properties = this.list(Wrappers.<OntObjectProperty>lambdaQuery()
+			.apply("inference_support @> ('[\"' || {0} || '\"]')::jsonb", capability)
+			.orderByAsc(OntObjectProperty::getSortOrder)
+			.orderByAsc(OntObjectProperty::getId));
+		return buildSummaryList(properties);
 	}
 
 	@Override
@@ -310,6 +327,12 @@ public class OntObjectPropertyServiceImpl extends ServiceImpl<OntObjectPropertyM
 			return R.failed(semanticError);
 		}
 
+		String capabilityError = validateInferenceSupport(request.getInferenceSupport(),
+			normalizeFlag(request.getIsFunctional()));
+		if (capabilityError != null) {
+			return R.failed(capabilityError);
+		}
+
 		OntNamespace namespace = namespaceMapper.selectById(request.getNamespaceId());
 		String effectiveLocalName = StringUtils.hasText(request.getIriLocalName()) ? request.getIriLocalName()
 				: request.getName();
@@ -330,6 +353,7 @@ public class OntObjectPropertyServiceImpl extends ServiceImpl<OntObjectPropertyM
 		prop.setNamespaceId(request.getNamespaceId());
 		prop.setSortOrder(request.getSortOrder() == null ? 0 : request.getSortOrder());
 		prop.setRemarks(request.getRemarks());
+		prop.setInferenceSupport(request.getInferenceSupport() != null ? request.getInferenceSupport() : List.of());
 		this.save(prop);
 
 		saveDomainAndRange(prop.getId(), domainIds, rangeIds);
@@ -389,6 +413,13 @@ public class OntObjectPropertyServiceImpl extends ServiceImpl<OntObjectPropertyM
 			return R.failed(semanticError);
 		}
 
+		List<String> inferenceSupport = request.getInferenceSupport() != null ? request.getInferenceSupport()
+				: old.getInferenceSupport();
+		String capabilityError = validateInferenceSupport(inferenceSupport, isFunctional);
+		if (capabilityError != null) {
+			return R.failed(capabilityError);
+		}
+
 		OntNamespace namespace = namespaceMapper.selectById(namespaceId);
 		String expectedIri = namespace.getUri() + iriLocalName;
 
@@ -405,7 +436,8 @@ public class OntObjectPropertyServiceImpl extends ServiceImpl<OntObjectPropertyM
 			.set(OntObjectProperty::getNamespaceId, namespaceId)
 			.set(OntObjectProperty::getSortOrder,
 				request.getSortOrder() == null ? old.getSortOrder() : request.getSortOrder())
-			.set(OntObjectProperty::getRemarks, request.getRemarks()));
+			.set(OntObjectProperty::getRemarks, request.getRemarks())
+			.set(OntObjectProperty::getInferenceSupport, inferenceSupport));
 
 		replaceDomainAndRange(old.getId(), domainIds, rangeIds);
 		saveLabel(old.getId(), ZH, request.getLabel());
@@ -566,6 +598,31 @@ public class OntObjectPropertyServiceImpl extends ServiceImpl<OntObjectPropertyM
 		return null;
 	}
 
+	/**
+	 * 校验推理能力契约的合法性。
+	 * <p>
+	 * 规则：
+	 * 1. 每个元素必须属于 ReasonerCapability 的已实现子集（DISJOINT_CHECK/FUNCTIONAL_CHECK/SUBCLASS_INFERENCE）；
+	 * 2. L3 必须是 L2 的子集：声明 FUNCTIONAL_CHECK 要求 isFunctional='1'。
+	 * @param inferenceSupport 能力契约列表
+	 * @param isFunctional 功能性标记
+	 * @return 错误信息，null 表示通过
+	 */
+	private String validateInferenceSupport(List<String> inferenceSupport, String isFunctional) {
+		if (inferenceSupport == null || inferenceSupport.isEmpty()) {
+			return null;
+		}
+		for (String cap : inferenceSupport) {
+			if (!IMPLEMENTED_CAPABILITIES.contains(cap)) {
+				return "本期未启用的推理能力：" + cap;
+			}
+		}
+		if (inferenceSupport.contains("FUNCTIONAL_CHECK") && !BUILTIN.equals(isFunctional)) {
+			return "声明 FUNCTIONAL_CHECK 需先设置 isFunctional='1'";
+		}
+		return null;
+	}
+
 	private String validateInverseProperty(Long inverseOfId, Long currentId) {
 		if (inverseOfId.equals(currentId)) {
 			return "逆属性不能指向自身";
@@ -639,7 +696,9 @@ public class OntObjectPropertyServiceImpl extends ServiceImpl<OntObjectPropertyM
 				|| request.getIsTransitive() != null && !Objects.equals(request.getIsTransitive(), old.getIsTransitive())
 				|| request.getIsSymmetric() != null && !Objects.equals(request.getIsSymmetric(), old.getIsSymmetric())
 				|| request.getInverseOfId() != null
-				|| request.getDefinition() != null;
+				|| request.getDefinition() != null
+				|| request.getInferenceSupport() != null
+						&& !Objects.equals(request.getInferenceSupport(), old.getInferenceSupport());
 	}
 
 	private boolean hasInverseField(OntObjectPropertyUpdateDTO request) {
@@ -696,6 +755,8 @@ public class OntObjectPropertyServiceImpl extends ServiceImpl<OntObjectPropertyM
 			.eq(StrUtil.isNotBlank(query.getIsTransitive()), OntObjectProperty::getIsTransitive,
 					query.getIsTransitive())
 			.eq(StrUtil.isNotBlank(query.getIsSymmetric()), OntObjectProperty::getIsSymmetric, query.getIsSymmetric())
+			.apply(StrUtil.isNotBlank(query.getInferenceSupport()),
+					"inference_support @> ('[\"' || ? || '\"]')::jsonb", query.getInferenceSupport())
 			.in(propertyIds != null && !propertyIds.isEmpty(), OntObjectProperty::getId, propertyIds)
 			.orderByAsc(OntObjectProperty::getSortOrder)
 			.orderByAsc(OntObjectProperty::getId);
@@ -761,6 +822,7 @@ public class OntObjectPropertyServiceImpl extends ServiceImpl<OntObjectPropertyM
 					vo.setInversePropertyLabel(inverseLabelMap.get(prop.getInverseOfId()));
 				}
 			}
+			vo.setInferenceSupport(prop.getInferenceSupport());
 			return vo;
 		}).toList();
 	}

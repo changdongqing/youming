@@ -48,15 +48,22 @@
 								<el-option label="扩展" value="0" />
 							</el-select>
 						</el-col>
+						<el-col :span="4">
+							<el-select v-model="query.inferenceSupport" clearable placeholder="能力契约">
+								<el-option label="功能属性校验" value="FUNCTIONAL_CHECK" />
+								<el-option label="不相交检测" value="DISJOINT_CHECK" />
+								<el-option label="子类推理" value="SUBCLASS_INFERENCE" />
+							</el-select>
+						</el-col>
 						<el-col :span="3">
 							<el-button icon="search" type="primary" @click="loadList">查询</el-button>
 						</el-col>
-						<el-col :span="12" style="text-align: right">
+						<el-col :span="8" style="text-align: right">
 							<el-button icon="folder-add" type="primary" v-auth="'ontology_object_property_add'" @click="openDialog()">新增属性</el-button>
 						</el-col>
 					</el-row>
 
-					<el-table v-if="!selectedDomainTypeId" :data="pagedData" border style="width: 100%">
+					<el-table v-if="!selectedDomainTypeId" :data="pagedData" border :max-height="tableMaxHeight" style="width: 100%">
 						<el-table-column type="index" label="#" width="50" />
 						<el-table-column prop="label" label="标签" min-width="100" show-overflow-tooltip />
 						<el-table-column prop="objectProperty.name" label="标准Name" min-width="120" show-overflow-tooltip />
@@ -84,6 +91,14 @@
 								<el-tag v-if="row.objectProperty.sourceType === 'GB_TABLE1'" size="small">表1核心</el-tag>
 								<el-tag v-else-if="row.objectProperty.sourceType === 'GB_TABLE1_DERIVED'" size="small" type="success">表1派生</el-tag>
 								<el-tag v-else size="small" type="info">扩展</el-tag>
+							</template>
+						</el-table-column>
+						<el-table-column label="能力契约" width="120">
+							<template #default="{ row }">
+								<template v-if="row.inferenceSupport && row.inferenceSupport.length > 0">
+									<el-tag v-for="cap in row.inferenceSupport" :key="cap" size="small" type="success" class="mr6 mb6">{{ inferenceCapabilityLabel(cap) }}</el-tag>
+								</template>
+								<el-tag v-else size="small" type="info">非推理托管</el-tag>
 							</template>
 						</el-table-column>
 						<el-table-column label="操作" width="120" fixed="right">
@@ -188,6 +203,16 @@
 					</el-select>
 				</el-form-item>
 
+				<el-divider content-position="left">推理能力契约</el-divider>
+				<el-form-item label="能力契约">
+					<el-checkbox-group v-model="form.inferenceSupport" :disabled="isBuiltinEdit">
+						<el-checkbox label="FUNCTIONAL_CHECK" :disabled="form.isFunctional !== '1'">功能属性校验</el-checkbox>
+						<el-checkbox label="DISJOINT_CHECK">不相交检测</el-checkbox>
+						<el-checkbox label="SUBCLASS_INFERENCE">子类推理</el-checkbox>
+					</el-checkbox-group>
+					<el-text v-if="form.isFunctional !== '1'" type="info" size="small">勾选功能性后可选"功能属性校验"</el-text>
+				</el-form-item>
+
 				<el-divider content-position="left">治理</el-divider>
 				<el-form-item label="排序" prop="sortOrder">
 					<el-input-number v-model="form.sortOrder" :min="0" controls-position="right" style="width: 100%" />
@@ -246,9 +271,12 @@ const applicableData = ref<ApplicableObjectProperty[]>([]);
 
 const pagination = reactive({ current: 1, size: 10, total: 0 });
 
+const tableMaxHeight = ref(window.innerHeight - 320);
+
 const query = reactive({
 	name: '',
 	isBuiltin: '',
+	inferenceSupport: '',
 });
 
 const treeProps = { label: 'label', children: 'children' };
@@ -274,6 +302,7 @@ const createEmptyForm = (): ObjectPropertyForm => ({
 	inverseOfId: undefined,
 	sortOrder: 0,
 	remarks: '',
+	inferenceSupport: [],
 });
 
 const form = reactive<ObjectPropertyForm>(createEmptyForm());
@@ -317,6 +346,15 @@ const filteredTree = computed<EntityTypeTreeNode[]>(() => filterEntityTypeTree(t
 const getErrorMessage = (error: unknown, fallback: string) => {
 	if (error && typeof error === 'object' && 'msg' in error) return String((error as { msg?: unknown }).msg || fallback);
 	return fallback;
+};
+
+const inferenceCapabilityLabel = (cap: string): string => {
+	switch (cap) {
+		case 'FUNCTIONAL_CHECK': return '功能校验';
+		case 'DISJOINT_CHECK': return '不相交检测';
+		case 'SUBCLASS_INFERENCE': return '子类推理';
+		default: return cap;
+	}
 };
 
 const loadTree = async () => {
@@ -364,6 +402,7 @@ const loadList = async () => {
 				size: pagination.size,
 				name: query.name || undefined,
 				isBuiltin: (query.isBuiltin as '0' | '1') || undefined,
+				inferenceSupport: query.inferenceSupport || undefined,
 			};
 			const response = await fetchObjectPropertyPage(params);
 			const pageData = response.data || {};
@@ -437,6 +476,7 @@ const resetForm = (detail?: any) => {
 		form.inverseOfId = op.inverseOfId;
 		form.sortOrder = op.sortOrder;
 		form.remarks = op.remarks || '';
+		form.inferenceSupport = detail.inferenceSupport || op.inferenceSupport || [];
 		if (detail.domains) {
 			form.domainEntityTypeIds = detail.domains.map((d: any) => d.id);
 		}
@@ -474,45 +514,47 @@ const submit = async () => {
 					remarks: form.remarks,
 				};
 				await putObjectPropertyObj(payload);
-			} else if (form.id) {
-				const payload: ObjectPropertyUpdateRequest = {
-					id: form.id,
-					namespaceId: form.namespaceId,
-					name: form.name,
-					iriLocalName: form.iriLocalName || undefined,
-					iri: form.iri || undefined,
-					label: form.label,
-					definition: form.definition || undefined,
-					domainEntityTypeIds: form.domainEntityTypeIds,
-					rangeEntityTypeIds: form.rangeEntityTypeIds,
-					isFunctional: form.isFunctional,
-					isInverseFunctional: form.isInverseFunctional,
-					isTransitive: form.isTransitive,
-					isSymmetric: form.isSymmetric,
-					inverseOfId: form.inverseOfId || undefined,
-					sortOrder: form.sortOrder,
-					remarks: form.remarks || undefined,
-				};
-				await putObjectPropertyObj(payload);
-			} else {
-				const payload: ObjectPropertyCreateRequest = {
-					namespaceId: form.namespaceId!,
-					name: form.name,
-					iriLocalName: form.iriLocalName || undefined,
-					iri: form.iri || undefined,
-					label: form.label,
-					definition: form.definition || undefined,
-					domainEntityTypeIds: form.domainEntityTypeIds,
-					rangeEntityTypeIds: form.rangeEntityTypeIds,
-					isFunctional: form.isFunctional,
-					isInverseFunctional: form.isInverseFunctional,
-					isTransitive: form.isTransitive,
-					isSymmetric: form.isSymmetric,
-					inverseOfId: form.inverseOfId || undefined,
-					sortOrder: form.sortOrder,
-					remarks: form.remarks || undefined,
-				};
-				await addObjectPropertyObj(payload);
+				} else if (form.id) {
+					const payload: ObjectPropertyUpdateRequest = {
+						id: form.id,
+						namespaceId: form.namespaceId,
+						name: form.name,
+						iriLocalName: form.iriLocalName || undefined,
+						iri: form.iri || undefined,
+						label: form.label,
+						definition: form.definition || undefined,
+						domainEntityTypeIds: form.domainEntityTypeIds,
+						rangeEntityTypeIds: form.rangeEntityTypeIds,
+						isFunctional: form.isFunctional,
+						isInverseFunctional: form.isInverseFunctional,
+						isTransitive: form.isTransitive,
+						isSymmetric: form.isSymmetric,
+						inverseOfId: form.inverseOfId || undefined,
+						sortOrder: form.sortOrder,
+						remarks: form.remarks || undefined,
+						inferenceSupport: form.inferenceSupport,
+					};
+					await putObjectPropertyObj(payload);
+				} else {
+					const payload: ObjectPropertyCreateRequest = {
+						namespaceId: form.namespaceId!,
+						name: form.name,
+						iriLocalName: form.iriLocalName || undefined,
+						iri: form.iri || undefined,
+						label: form.label,
+						definition: form.definition || undefined,
+						domainEntityTypeIds: form.domainEntityTypeIds,
+						rangeEntityTypeIds: form.rangeEntityTypeIds,
+						isFunctional: form.isFunctional,
+						isInverseFunctional: form.isInverseFunctional,
+						isTransitive: form.isTransitive,
+						isSymmetric: form.isSymmetric,
+						inverseOfId: form.inverseOfId || undefined,
+						sortOrder: form.sortOrder,
+						remarks: form.remarks || undefined,
+						inferenceSupport: form.inferenceSupport,
+					};
+					await addObjectPropertyObj(payload);
 			}
 			useMessage().success('操作成功');
 			dialog.visible = false;
@@ -540,6 +582,10 @@ const handleDelete = async (row: any) => {
 
 onMounted(() => {
 	refreshAll();
+	tableMaxHeight.value = window.innerHeight - 320;
+	window.addEventListener('resize', () => {
+		tableMaxHeight.value = window.innerHeight - 320;
+	});
 	if (pageRef.value) {
 		recalcLeftPane(pageRef.value.clientWidth);
 		resizeObserver = new ResizeObserver((entries) => {
@@ -553,6 +599,7 @@ onMounted(() => {
 
 onUnmounted(() => {
 	resizeObserver?.disconnect();
+	window.removeEventListener('resize', () => {});
 });
 </script>
 

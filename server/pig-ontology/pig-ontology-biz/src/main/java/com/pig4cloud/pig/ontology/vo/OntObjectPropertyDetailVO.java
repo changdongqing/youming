@@ -40,4 +40,7 @@ public class OntObjectPropertyDetailVO {
 	@Schema(description = "语义警告提示")
 	private List<String> semanticWarnings;
 
+	@Schema(description = "推理能力契约")
+	private List<String> inferenceSupport;
+
 }

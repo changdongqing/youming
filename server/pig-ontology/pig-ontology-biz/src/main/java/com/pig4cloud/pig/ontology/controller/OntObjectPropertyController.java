@@ -33,6 +33,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Set;
+
 import java.util.List;
 
 /**
@@ -48,6 +50,10 @@ import java.util.List;
 public class OntObjectPropertyController {
 
 	private final OntObjectPropertyService ontObjectPropertyService;
+
+	/** 本期引擎已实现的推理能力子集，用于 by-capability 接口参数校验 */
+	private static final Set<String> VALID_CAPABILITIES = Set.of("DISJOINT_CHECK", "FUNCTIONAL_CHECK",
+			"SUBCLASS_INFERENCE");
 
 	/**
 	 * 分页查询对象属性。
@@ -108,6 +114,20 @@ public class OntObjectPropertyController {
 	@HasPermission("ontology_object_property_view")
 	public R<List<OntApplicableObjectPropertyByRangeVO>> byRange(@PathVariable Long entityTypeId) {
 		return R.ok(ontObjectPropertyService.listApplicableByRange(entityTypeId));
+	}
+
+	/**
+	 * 按推理能力查询对象属性。
+	 * @param capability ReasonerCapability 枚举名（DISJOINT_CHECK/FUNCTIONAL_CHECK/SUBCLASS_INFERENCE）
+	 * @return 声明了该能力的对象属性摘要列表
+	 */
+	@GetMapping("/by-capability/{capability}")
+	@HasPermission("ontology_object_property_view")
+	public R<List<OntObjectPropertySummaryVO>> byCapability(@PathVariable String capability) {
+		if (!VALID_CAPABILITIES.contains(capability)) {
+			return R.failed("非法的推理能力标识：" + capability);
+		}
+		return R.ok(ontObjectPropertyService.listByCapability(capability));
 	}
 
 	/**

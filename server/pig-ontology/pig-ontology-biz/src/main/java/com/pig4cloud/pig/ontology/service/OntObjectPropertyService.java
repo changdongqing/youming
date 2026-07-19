@@ -63,6 +63,13 @@ public interface OntObjectPropertyService extends IService<OntObjectProperty> {
 	List<OntApplicableObjectPropertyByRangeVO> listApplicableByRange(Long entityTypeId);
 
 	/**
+	 * 按推理能力查询对象属性。
+	 * @param capability ReasonerCapability 枚举名
+	 * @return 声明了该能力的对象属性摘要列表
+	 */
+	List<OntObjectPropertySummaryVO> listByCapability(String capability);
+
+	/**
 	 * 新增对象属性。
 	 * @param request 新增请求
 	 * @return 处理结果

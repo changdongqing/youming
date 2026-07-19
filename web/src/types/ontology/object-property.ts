@@ -4,6 +4,9 @@ export type OntologyId = string;
 
 export type SourceType = 'GB_TABLE1' | 'GB_TABLE1_DERIVED' | 'EXTENSION';
 
+/** 本期引擎已实现的推理能力 */
+export type InferenceCapability = 'DISJOINT_CHECK' | 'FUNCTIONAL_CHECK' | 'SUBCLASS_INFERENCE';
+
 export interface ObjectPropertyQuery {
 	name?: string;
 	ontologyId?: OntologyId;
@@ -16,6 +19,7 @@ export interface ObjectPropertyQuery {
 	isInverseFunctional?: '0' | '1';
 	isTransitive?: '0' | '1';
 	isSymmetric?: '0' | '1';
+	inferenceSupport?: string;
 	current?: number;
 	size?: number;
 }
@@ -51,6 +55,7 @@ export interface ObjectProperty {
 	namespaceId: OntologyId;
 	sortOrder: number;
 	remarks?: string;
+	inferenceSupport?: string[];
 }
 
 export interface ObjectPropertySummary {
@@ -60,6 +65,7 @@ export interface ObjectPropertySummary {
 	ranges: EntityTypeRef[];
 	inversePropertyName?: string;
 	inversePropertyLabel?: string;
+	inferenceSupport?: string[];
 }
 
 export interface ObjectPropertyDetail {
@@ -70,6 +76,7 @@ export interface ObjectPropertyDetail {
 	namespace?: NamespaceOption;
 	inverseProperty?: ObjectPropertySummary;
 	semanticWarnings?: string[];
+	inferenceSupport?: string[];
 }
 
 export interface ApplicableObjectProperty {
@@ -114,6 +121,7 @@ export interface ObjectPropertyForm {
 	sortOrder: number;
 	remarks: string;
 	isBuiltin?: '0' | '1';
+	inferenceSupport: string[];
 }
 
 export interface ObjectPropertyCreateRequest {
@@ -132,6 +140,7 @@ export interface ObjectPropertyCreateRequest {
 	inverseOfId?: OntologyId;
 	sortOrder: number;
 	remarks?: string;
+	inferenceSupport?: string[];
 }
 
 export interface ObjectPropertyUpdateRequest {
@@ -151,4 +160,5 @@ export interface ObjectPropertyUpdateRequest {
 	inverseOfId?: OntologyId;
 	sortOrder: number;
 	remarks?: string;
+	inferenceSupport?: string[];
 }

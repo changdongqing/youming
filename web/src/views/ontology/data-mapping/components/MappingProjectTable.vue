@@ -99,7 +99,7 @@
 				<el-table-column prop="createTime" label="创建时间" width="170" />
 				<el-table-column label="操作" width="200">
 					<template #default="{ row }">
-						<el-button link type="primary" @click="handleEditDraft({ draftVersion: row, ...selectedProject })" v-if="row.versionStatus === 'DRAFT'">
+						<el-button link type="primary" @click="handleEditDraft({ ...selectedProject, draftVersion: row })" v-if="row.versionStatus === 'DRAFT'">
 							编辑
 						</el-button>
 						<el-button link type="primary" @click="handleViewSnapshot(row)">快照</el-button>

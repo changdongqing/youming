@@ -47,6 +47,13 @@ export function fetchObjectPropertiesByRange(entityTypeId: OntologyId) {
 	});
 }
 
+export function fetchObjectPropertiesByCapability(capability: string) {
+	return request({
+		url: `/admin/ontology/object-properties/by-capability/${capability}`,
+		method: 'get',
+	});
+}
+
 export function addObjectPropertyObj(obj: ObjectPropertyCreateRequest) {
 	return request({
 		url: '/admin/ontology/object-properties',

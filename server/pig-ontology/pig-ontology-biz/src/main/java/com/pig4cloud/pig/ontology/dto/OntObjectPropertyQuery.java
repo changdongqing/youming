@@ -49,4 +49,7 @@ public class OntObjectPropertyQuery {
 	@Schema(description = "是否对称性")
 	private String isSymmetric;
 
+	@Schema(description = "推理能力契约过滤（如FUNCTIONAL_CHECK）")
+	private String inferenceSupport;
+
 }
