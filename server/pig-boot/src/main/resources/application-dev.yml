@@ -28,7 +28,7 @@ spring:
       driver-class-name: org.postgresql.Driver
       username: ${PG_USER:user_PAmcy2}
       password: ${PG_PASSWORD:password_bkQ4JT}
-      url: jdbc:postgresql://${PG_HOST:127.0.0.1}:${PG_PORT:5432}/${PG_DB:youmingdb}
+      url: jdbc:postgresql://${PG_HOST:127.0.0.1}:${PG_PORT:5432}/${PG_DB:mingwanwudb}
 
 # 文件上传配置
 file:
