@@ -54,6 +54,12 @@
             <artifactId>pig-quartz</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--本体模板化治理模块-->
+        <dependency>
+            <groupId>com.pig4cloud</groupId>
+            <artifactId>pig-ontology-biz</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!--安全模块-->
         <dependency>
             <groupId>com.pig4cloud</groupId>

@@ -26,6 +26,12 @@ spring:
               uri: lb://pig-auth
               predicates:
                 - Path=/auth/**
+            - id: pig-ontology
+              uri: lb://pig-ontology-biz
+              predicates:
+                - Path=/admin/ont/**
+              metadata:
+                response-timeout: 30000
             - id: pig-upms-biz
               uri: lb://pig-upms-biz
               predicates:
