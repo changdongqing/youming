@@ -22,17 +22,17 @@
 
 ### youming 业务库（PostgreSQL）
 
-- **数据库名：`youmingdb`**（容器 `1Panel-postgresql-ANBv` 内，已创建）
-- 连接串：`jdbc:postgresql://127.0.0.1:5432/youmingdb`（容器内或宿主机均可用 5432）
+- **数据库名：`mingwanwudb`**（容器 `1Panel-postgresql-ANBv` 内，已创建）
+- 连接串：`jdbc:postgresql://127.0.0.1:5432/mingwanwudb`（容器内或宿主机均可用 5432）
 - 用户名 / 密码：`user_PAmcy2` / `password_bkQ4JT`
 - **库结构由 [Flyway](https://flywaydb.org/) 统一管理**：迁移脚本位于 `server/pig-common/pig-common-data/src/main/resources/db/migration/`（V1 业务表结构 / V2 种子数据 / V3 Quartz 表），应用启动自动迁移。**变更库结构须新增版本脚本，禁止直接改已应用的脚本**（checksum 校验）。
 
 > 操作 PG 的便捷方式（本机无 psql CLI，通过 docker exec）：
 > ```bash
 > # 执行 SQL
-> docker exec -e PGPASSWORD=password_bkQ4JT 1Panel-postgresql-ANBv psql -U user_PAmcy2 -d youmingdb -c "<SQL>"
+> docker exec -e PGPASSWORD=password_bkQ4JT 1Panel-postgresql-ANBv psql -U user_PAmcy2 -d mingwanwudb -c "<SQL>"
 > # 导入 SQL 文件
-> docker exec -i -e PGPASSWORD=password_bkQ4JT 1Panel-postgresql-ANBv psql -U user_PAmcy2 -d youmingdb < some.sql
+> docker exec -i -e PGPASSWORD=password_bkQ4JT 1Panel-postgresql-ANBv psql -U user_PAmcy2 -d mingwanwudb < some.sql
 > # Nacos 元数据库同理（库名按实际）
 > ```
 

@@ -16,7 +16,7 @@
 
 | 范围 | 是否迁移 | 说明 |
 |------|---------|------|
-| 业务库（原 `pig`，49 张表） | ✅ 迁移 | 38 业务表手工转换 DDL + 11 Quartz 表用官方 PG 脚本；库名改为 `youmingdb` |
+| 业务库（原 `pig`，49 张表） | ✅ 迁移 | 38 业务表手工转换 DDL + 11 Quartz 表用官方 PG 脚本；库名改为 `mingwanwudb` |
 | Nacos 元数据库（原 `pig_config`） | ✅ 迁移 | 由 Nacos 3.2.2 原生 PG 支持（`nacos-datasource-plugin-postgresql` 内 `pg-schema.sql`）初始化 |
 | Redis | ❌ 不涉及 | 无变化 |
 | 数据迁移 | 仅种子数据 | youming 为新项目，无存量业务数据；`db/pig.sql` 中 635 行 INSERT（菜单/字典/角色等种子）需迁入 |
@@ -69,7 +69,7 @@
 
 | # | 位置 | 当前值 | 改造 |
 |---|------|-------|------|
-| C1 | `server/pig-boot/src/main/resources/application-dev.yml`（单体业务库） | `com.mysql.cj.jdbc.Driver` + `jdbc:mysql://pig-mysql:3306/pig?...` | → `org.postgresql.Driver` + `jdbc:postgresql://127.0.0.1:5432/youmingdb`，移除 MySQL 专有参数 |
+| C1 | `server/pig-boot/src/main/resources/application-dev.yml`（单体业务库） | `com.mysql.cj.jdbc.Driver` + `jdbc:mysql://pig-mysql:3306/pig?...` | → `org.postgresql.Driver` + `jdbc:postgresql://127.0.0.1:5432/mingwanwudb`，移除 MySQL 专有参数 |
 | C2 | `server/pig-register/src/main/resources/application.properties`（Nacos 元数据库） | `spring.sql.init.platform=mysql` + `db.url.0=jdbc:mysql://...pig_config` | → `platform=postgresql` + `jdbc:postgresql://.../youming_config`（库名按实际） |
 | C3 | `server/db/pig_config.sql` 内 3 个 data_id 的 content（微服务版 Nacos 下发的 pig-codegen/pig-upms-biz/pig-quartz 的 yml） | 内含 `jdbc:mysql://${MYSQL_HOST}:...` | → PG 连接（供微服务版） |
 
@@ -83,7 +83,7 @@
 
 | 服务 | 容器 | 迁移用途 |
 |------|------|---------|
-| PostgreSQL 18.4 | `1Panel-postgresql-ANBv`（5432） | **目标库**；已建库 `youmingdb`；用户 `user_PAmcy2` / 密码 `password_bkQ4JT` |
+| PostgreSQL 18.4 | `1Panel-postgresql-ANBv`（5432） | **目标库**；已建库 `mingwanwudb`；用户 `user_PAmcy2` / 密码 `password_bkQ4JT` |
 | Nacos 3.2.2 | `1Panel-nacos-4GLs`（8848） | 配置中心（微服务版用）；可复用本机容器或内嵌 pig-register |
 | Redis 8.8 | `1Panel-redis-2G4M`（6379） | 缓存，无变化 |
 | MySQL 8.4 | `1Panel-mysql-AFGI`（3306） | 迁移源（逐步弃用） |
@@ -93,11 +93,11 @@
 ```bash
 # 建库 / 执行 SQL
 docker exec -e PGPASSWORD=password_bkQ4JT 1Panel-postgresql-ANBv \
-  psql -U user_PAmcy2 -d postgres -c "CREATE DATABASE youmingdb;"
+  psql -U user_PAmcy2 -d postgres -c "CREATE DATABASE mingwanwudb;"
 
 # 导入 SQL 文件
 docker exec -i -e PGPASSWORD=password_bkQ4JT 1Panel-postgresql-ANBv \
-  psql -U user_PAmcy2 -d youmingdb < server/db/postgresql/V1__init_schema.sql
+  psql -U user_PAmcy2 -d mingwanwudb < server/db/postgresql/V1__init_schema.sql
 ```
 
 ---
@@ -195,19 +195,19 @@ Nacos 启动时据 `platform=postgresql` 自动加载 `META-INF/pg-schema.sql`�
 ```bash
 # 1. 建库（已存在则跳过）
 docker exec -e PGPASSWORD=password_bkQ4JT 1Panel-postgresql-ANBv \
-  psql -U user_PAmcy2 -d postgres -c "CREATE DATABASE youmingdb;"
+  psql -U user_PAmcy2 -d postgres -c "CREATE DATABASE mingwanwudb;"
 
 # 2. 导入业务表结构
 docker exec -i -e PGPASSWORD=password_bkQ4JT 1Panel-postgresql-ANBv \
-  psql -U user_PAmcy2 -d youmingdb < server/db/postgresql/V1__init_schema.sql
+  psql -U user_PAmcy2 -d mingwanwudb < server/db/postgresql/V1__init_schema.sql
 
 # 3. 导入 Quartz 表
 docker exec -i -e PGPASSWORD=password_bkQ4JT 1Panel-postgresql-ANBv \
-  psql -U user_PAmcy2 -d youmingdb < server/db/postgresql/quartz/tables_postgres.sql
+  psql -U user_PAmcy2 -d mingwanwudb < server/db/postgresql/quartz/tables_postgres.sql
 
 # 4. 导入种子数据
 docker exec -i -e PGPASSWORD=password_bkQ4JT 1Panel-postgresql-ANBv \
-  psql -U user_PAmcy2 -d youmingdb < server/db/postgresql/V1__init_data.sql
+  psql -U user_PAmcy2 -d mingwanwudb < server/db/postgresql/V1__init_data.sql
 ```
 
 > Flyway 集成后（任务 3），上述脚本迁入 `db/migration/`，由应用启动自动执行，无需手工导入。
@@ -221,7 +221,7 @@ docker exec -i -e PGPASSWORD=password_bkQ4JT 1Panel-postgresql-ANBv \
 | 1 | `server/pig-visual/pig-codegen/pom.xml` | 新增 `anyline-data-jdbc-postgresql` 依赖（让 codegen 连 PG 源做元数据解析） |
 | 2 | `server/pig-common/pig-common-data/.../MybatisPlusConfiguration.java` | `new PaginationInnerInterceptor()` → `new PaginationInnerInterceptor(DbType.POSTGRE_SQL)`（显式方言） |
 | 3 | `server/pig-visual/pig-quartz/.../quartz-config.yml` | `driverDelegateClass` → `PostgreSQLDelegate` |
-| 4 | `server/pig-boot/src/main/resources/application-dev.yml` | driver → `org.postgresql.Driver`，url → `jdbc:postgresql://127.0.0.1:5432/youmingdb` |
+| 4 | `server/pig-boot/src/main/resources/application-dev.yml` | driver → `org.postgresql.Driver`，url → `jdbc:postgresql://127.0.0.1:5432/mingwanwudb` |
 | 5 | `server/pig-register/src/main/resources/application.properties` | `platform=postgresql` + `db.url.0=jdbc:postgresql://...` |
 | 6 | `server/db/pig_config.sql`（3 个 data_id content） | jdbc:mysql → jdbc:postgresql（微服务版配置） |
 | 7 | `server/docker-compose.yml` / `docker-compose-boot.yml` | 新增 postgres 服务定义或注释说明连本机 1Panel-postgresql |
@@ -275,7 +275,7 @@ docker exec -i -e PGPASSWORD=password_bkQ4JT 1Panel-postgresql-ANBv \
 
 - 迁移前 MySQL 源库不删除、不改动，作为回滚后援。
 - 所有改动通过 git 提交，`git revert` 可精确回退。
-- PG 的 youmingdb 可保留（不干扰 MySQL 回滚）。
+- PG 的 mingwanwudb 可保留（不干扰 MySQL 回滚）。
 
 ---
 

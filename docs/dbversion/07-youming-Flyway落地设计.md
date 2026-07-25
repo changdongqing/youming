@@ -1,6 +1,6 @@
 # 07 · youming Flyway 落地设计
 
-> 本文档是 youming 项目 Flyway 集成的**执行级落地设计**，在 PG 迁移完成后引入 Flyway 统一管理业务库 `youmingdb` 的结构版本。
+> 本文档是 youming 项目 Flyway 集成的**执行级落地设计**，在 PG 迁移完成后引入 Flyway 统一管理业务库 `mingwanwudb` 的结构版本。
 > 编写日期：2026-07-08
 > 评审依据：[04-Flyway集成设计-评审](./04-Flyway集成设计-评审.md)（方案 A 单点执行 + baseline 标准路径）
 
@@ -8,7 +8,7 @@
 
 ## 一、设计目标
 
-在 PG 迁移基础上，引入 Flyway 统一管理业务库 `youmingdb` 的 schema 版本，实现：
+在 PG 迁移基础上，引入 Flyway 统一管理业务库 `mingwanwudb` 的 schema 版本，实现：
 
 1. 库结构变更可追溯、可回滚（通过迁移脚本版本管理）。
 2. 应用启动自动迁移到最新版本（无需手工导 SQL）。
@@ -28,11 +28,11 @@
 
 ### 2.2 单体版（pig-boot）天然单点
 
-pig-boot 聚合了 auth/upms-biz/codegen/quartz，单进程单 DataSource 连 `youmingdb`。Flyway 在 pig-boot 启动时执行一次，无多服务并发争 history 锁问题。**这是 youming 单体版集成 Flyway 的最大优势**。
+pig-boot 聚合了 auth/upms-biz/codegen/quartz，单进程单 DataSource 连 `mingwanwudb`。Flyway 在 pig-boot 启动时执行一次，无多服务并发争 history 锁问题。**这是 youming 单体版集成 Flyway 的最大优势**。
 
 ### 2.3 微服务版单点化策略（方案 A）
 
-微服务版下，upms-biz/codegen/quartz 三个服务共享 `youmingdb`，若三者同时启动会并发执行 Flyway 争 `flyway_schema_history` 锁。方案 A（评审 04 推荐）：
+微服务版下，upms-biz/codegen/quartz 三个服务共享 `mingwanwudb`，若三者同时启动会并发执行 Flyway 争 `flyway_schema_history` 锁。方案 A（评审 04 推荐）：
 
 - **仅 upms-biz 启用 Flyway**（最先启动、依赖最核心），codegen/quartz 通过配置 `spring.flyway.enabled=false` 禁用。
 - 或在 pig-common-data 的自动配置类中加条件：仅当配置 `pig.flyway.enabled=true` 时启用，各服务按需开关。
@@ -94,7 +94,7 @@ spring:
 
 youming 为**全新空库迁移**，采用评审 04 推荐的标准路径：
 
-1. 目标库 `youmingdb` 为空（无表）。
+1. 目标库 `mingwanwudb` 为空（无表）。
 2. Flyway 启动时检测到空库，直接执行所有 V1 脚本建表 + 种子数据。
 3. `baseline-on-migrate=true` 对空库无副作用（空库不会触发 baseline，直接 migrate）。
 
@@ -151,7 +151,7 @@ Flyway 管库结构（DDL + 种子数据），MyBatis-Plus 管运行时 CRUD。�
 
 ### 5.2 动态数据源（codegen 的 gen_datasource_conf）
 
-- **Flyway 仅管业务库 `youmingdb`**，不介入 codegen 运行时连接的第三方动态数据源（`gen_datasource_conf` 表配置的库）。
+- **Flyway 仅管业务库 `mingwanwudb`**，不介入 codegen 运行时连接的第三方动态数据源（`gen_datasource_conf` 表配置的库）。
 - codegen 通过 anyline 连动态数据源做元数据解析，这些库的结构由各自管理，Flyway 不接管（评审 04-8 判断正确）。
 
 ### 5.3 Nacos 元数据库（pig_config / youming_config）
@@ -161,7 +161,7 @@ Flyway 管库结构（DDL + 种子数据），MyBatis-Plus 管运行时 CRUD。�
 
 ### 5.4 Quartz 表
 
-- Quartz 11 表（`qrtz_*`）纳入 Flyway V3 基线（与业务表同库 `youmingdb`）。
+- Quartz 11 表（`qrtz_*`）纳入 Flyway V3 基线（与业务表同库 `mingwanwudb`）。
 - `quartz-config.yml` 的 `initialize-schema: never` 保持不变（由 Flyway 管理建表，Quartz 不自动建）。
 
 ---
@@ -240,7 +240,7 @@ youming 采用版本号命名（V1/V2/Vn）而非时间戳，天然有序，无�
 
 ### 8.1 干净库自动迁移
 
-- [ ] 清空 `youmingdb`（DROP 所有表，或重建库）
+- [ ] 清空 `mingwanwudb`（DROP 所有表，或重建库）
 - [ ] 启动 pig-boot，观察日志：Flyway 自动执行 V1/V2/V3
 - [ ] `flyway_schema_history` 表有 3 条 Success 记录
 - [ ] 业务表/种子数据/Quartz 表全部建成
