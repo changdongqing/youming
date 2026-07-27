@@ -1,9 +1,12 @@
 spring:
   data:
     redis:
-      host: ${REDIS_HOST:127.0.0.1}   # 本机 docker redis (1Panel-redis)，原为容器主机名 pig-redis
-      database: 5
-      password: ${REDIS_PASSWORD:redis_6QX4h2}
+      # 对齐本机 docker 容器 devops-redis (redis:latest, 端口 6379)
+      # 启动命令: redis-server --requirepass redis --appendonly yes
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      database: 0          # devops-redis 未指定 db, 使用默认 0
+      password: ${REDIS_PASSWORD:redis}
   # Quartz 属性 (迁移到 PG 后显式声明, 确保 PostgreSQLDelegate 生效, 与 quartz-config.yml 互为兜底)
   quartz:
     properties:
@@ -22,12 +25,15 @@ spring:
     encoding: UTF-8
     placeholder-replacement: false # 禁用 placeholder 替换 (gen_template 种子数据含 ${package} 等 Velocity 变量, 非 Flyway 占位符)
   # 数据库相关配置 (PostgreSQL, 由 MySQL 迁移而来)
+  # 对齐本机 docker 容器 devops-postgres (postgres:latest PG 18.4, 端口 5432)
+  # 容器凭证: POSTGRES_USER=postgres / POSTGRES_PASSWORD=postgres
+  # 业务库 mingwanwudb 已在 devops-postgres 中创建 (owner=postgres)
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
     druid:
       driver-class-name: org.postgresql.Driver
-      username: ${PG_USER:user_PAmcy2}
-      password: ${PG_PASSWORD:password_bkQ4JT}
+      username: ${PG_USER:postgres}
+      password: ${PG_PASSWORD:postgres}
       url: jdbc:postgresql://${PG_HOST:127.0.0.1}:${PG_PORT:5432}/${PG_DB:mingwanwudb}
 
 # 文件上传配置

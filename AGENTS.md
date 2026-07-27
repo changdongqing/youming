@@ -11,29 +11,36 @@
 
 ## 本机开发环境（Docker 部署的基础设施）
 
-本机通过 1Panel 管理 Docker 容器，开发所需基础设施均已运行：
+本机通过 Docker 直接运行 `devops-*` 系列容器（`docker compose` 起的 devops 全家桶），开发所需基础设施均已运行：
 
 | 服务 | 容器名 | 端口 | 凭证 / 说明 |
 |------|--------|------|------------|
-| **PostgreSQL** | `1Panel-postgresql-ANBv` | 5432 | PG 18.4-alpine；**用户名 `user_PAmcy2`，密码 `password_bkQ4JT`**；数据卷 `/opt/1panel/apps/postgresql/postgresql/data`。业务库结构由 Flyway 管理（见下） |
-| MySQL（已弃用） | `1Panel-mysql-AFGI` | 3306 | MySQL 8.4.10；账号 `root/root`。**youming 已迁移至 PostgreSQL，开发测试不再使用 MySQL**（仅保留作迁移源回溯） |
-| Nacos | `1Panel-nacos-4GLs-standalone` | 8848/9848/8080 | nacos-server v3.2.2 standalone（可复用，也可用内嵌 pig-register） |
-| Redis | `1Panel-redis-2G4M` | 6379 | redis 8.8.0 |
+| **PostgreSQL** | `devops-postgres` | 5432 | `postgres:latest`（PG 18.4）；**用户名 `postgres`，密码 `postgres`**。业务库结构由 Flyway 管理（见下） |
+| MySQL（已弃用） | 无 | — | youming 已迁移至 PostgreSQL，开发测试不再使用 MySQL（仅保留作迁移源回溯） |
+| Nacos | `devops-nacos` | 8848/9848/8080 | `nacos/nacos-server:latest` standalone，**内嵌 derby 存储**（非 PG/MySQL）；控制台账号 `nacos/nacos`。也可用项目内嵌 `pig-register`（连 PG） |
+| Redis | `devops-redis` | 6379 | `redis:latest`（8.8.1）；启动命令 `redis-server --requirepass redis --appendonly yes`；**密码 `redis`**，db 0 |
 
 ### youming 业务库（PostgreSQL）
 
-- **数据库名：`mingwanwudb`**（容器 `1Panel-postgresql-ANBv` 内，已创建）
+- **数据库名：`mingwanwudb`**（容器 `devops-postgres` 内，已创建，owner=postgres）
 - 连接串：`jdbc:postgresql://127.0.0.1:5432/mingwanwudb`（容器内或宿主机均可用 5432）
-- 用户名 / 密码：`user_PAmcy2` / `password_bkQ4JT`
+- 用户名 / 密码：`postgres` / `postgres`
 - **库结构由 [Flyway](https://flywaydb.org/) 统一管理**：迁移脚本位于 `server/pig-common/pig-common-data/src/main/resources/db/migration/`（V1 业务表结构 / V2 种子数据 / V3 Quartz 表），应用启动自动迁移。**变更库结构须新增版本脚本，禁止直接改已应用的脚本**（checksum 校验）。
 
 > 操作 PG 的便捷方式（本机无 psql CLI，通过 docker exec）：
 > ```bash
 > # 执行 SQL
-> docker exec -e PGPASSWORD=password_bkQ4JT 1Panel-postgresql-ANBv psql -U user_PAmcy2 -d mingwanwudb -c "<SQL>"
+> docker exec -e PGPASSWORD=postgres devops-postgres psql -U postgres -d mingwanwudb -c "<SQL>"
 > # 导入 SQL 文件
-> docker exec -i -e PGPASSWORD=password_bkQ4JT 1Panel-postgresql-ANBv psql -U user_PAmcy2 -d mingwanwudb < some.sql
+> docker exec -i -e PGPASSWORD=postgres devops-postgres psql -U postgres -d mingwanwudb < some.sql
 > # Nacos 元数据库同理（库名按实际）
+> ```
+
+> 操作 Redis 的便捷方式：
+> ```bash
+> # 需带认证（requirepass redis）
+> docker exec devops-redis redis-cli -a redis ping
+> docker exec devops-redis redis-cli -a redis info keyspace
 > ```
 
 ## 数据库迁移背景（MySQL → PostgreSQL）

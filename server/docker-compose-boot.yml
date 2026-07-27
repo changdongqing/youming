@@ -2,17 +2,17 @@
 # 1. 先构建单体 JAR: mvn clean install -Pboot -DskipTests
 # 2. 启动服务: docker compose -f docker-compose-boot.yml up -d
 # 3. 静静等待服务启动
-# 注: 本机已通过 1Panel 运行 PostgreSQL (1Panel-postgresql-ANBv, 库 mingwanwudb),
-#     本地调试可直接连该容器, 无需启动此 pig-postgres 服务。
-#     仅在需要纯净容器化环境时取消下方 pig-postgres 注释。
+# 注: 本机通过 Docker 运行 PostgreSQL (devops-postgres, PG 18.4, 端口 5432, 库 mingwanwudb),
+#     凭证 postgres/postgres。本地调试可直接连该容器, 无需启动此 pig-postgres 服务。
+#     仅在需要纯净容器化环境时取消下方 pig-postgres 注释 (注意凭证需与之匹配)。
 services:
   # pig-postgres:
   #   build:
   #     context: ./db
   #     dockerfile: postgresql/Dockerfile
   #   environment:
-  #     POSTGRES_USER: user_PAmcy2
-  #     POSTGRES_PASSWORD: password_bkQ4JT
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: postgres
   #     POSTGRES_DB: mingwanwudb
   #   restart: always
   #   container_name: pig-postgres
@@ -22,19 +22,17 @@ services:
   #   networks:
   #     - spring_cloud_default
 
-  pig-redis:
-    container_name: pig-redis
-    image: registry.cn-hangzhou.aliyuncs.com/dockerhub_mirror/redis
-    restart: always
-    networks:
-      - spring_cloud_default
-
-  pig-redis:
-    container_name: pig-redis
-    image: registry.cn-hangzhou.aliyuncs.com/dockerhub_mirror/redis
-    restart: always
-    networks:
-      - spring_cloud_default
+  # Redis: 本机通过 Docker 运行 devops-redis (redis:latest, 端口 6379, requirepass redis)。
+  # 本地调试直连 127.0.0.1:6379 即可, 无需启用此服务; 仅容器化部署时取消注释。
+  # pig-redis:
+  #   container_name: pig-redis
+  #   image: redis
+  #   restart: always
+  #   command: redis-server --requirepass redis --appendonly yes
+  #   ports:
+  #     - 6379:6379
+  #   networks:
+  #     - spring_cloud_default
 
   # 单体的时候注意，服务名称命名为 pig-gateway 对应前端nginx 配置
   pig-gateway:
