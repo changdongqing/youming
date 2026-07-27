@@ -25,7 +25,10 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.pig4cloud.pig.common.core.util.R;
 import com.pig4cloud.pig.common.security.annotation.HasPermission;
 import com.pig4cloud.pig.ontology.api.entity.PropertyTemplate;
+import com.pig4cloud.pig.ontology.api.vo.ClassTemplateNodeVO;
+import com.pig4cloud.pig.ontology.api.vo.InheritedViewVO;
 import com.pig4cloud.pig.ontology.api.vo.PropertyTemplateSupplyVO;
+import com.pig4cloud.pig.ontology.service.ClassTemplateService;
 import com.pig4cloud.pig.ontology.service.PropertyTemplateService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -57,6 +60,8 @@ public class SupplyController {
 
 	private final PropertyTemplateService propertyTemplateService;
 
+	private final ClassTemplateService classTemplateService;
+
 	@GetMapping("/property-templates")
 	@Operation(summary = "属性模板供给", description = "按 kind/category 拉取，默认排除弃用")
 	@HasPermission("ont_supply_view")
@@ -73,6 +78,33 @@ public class SupplyController {
 		// 转为稳定化 VO，屏蔽审计/逻辑删除字段，保证建模侧契约稳定（AC-5.7）
 		List<PropertyTemplateSupplyVO> voList = BeanUtil.copyToList(list, PropertyTemplateSupplyVO.class);
 		return R.ok(voList);
+	}
+
+	@GetMapping("/class-template/tree")
+	@Operation(summary = "分类模板树供给", description = "含编码/继承预览/外观（10.5）")
+	@HasPermission("ont_supply_view")
+	public R<List<ClassTemplateNodeVO>> supplyClassTemplateTree(
+			@RequestParam String treeRoot,
+			@RequestParam(defaultValue = "false") Boolean includeDeprecated) {
+		return R.ok(classTemplateService.tree(treeRoot, includeDeprecated));
+	}
+
+	@GetMapping("/class-template/{code}/inherited")
+	@Operation(summary = "分类模板继承视图供给", description = "合并父链属性+外观，供建模侧套用（10.5，AC-2.3）")
+	@HasPermission("ont_supply_view")
+	public R<InheritedViewVO> supplyInherited(@PathVariable String code) {
+		com.pig4cloud.pig.ontology.api.entity.ClassTemplate tpl = classTemplateService.getByCode(code);
+		if (tpl == null) {
+			return R.failed("分类模板不存在: " + code);
+		}
+		return R.ok(classTemplateService.inheritedView(tpl.getId()));
+	}
+
+	@GetMapping("/class-hierarchy/suggest")
+	@Operation(summary = "类层级建议供给", description = "据模板父链推荐 subClassOf 父类（FR-9，10.5，AC-9.1）")
+	@HasPermission("ont_supply_view")
+	public R<List<String>> suggestClassHierarchy(@RequestParam String templateCode) {
+		return R.ok(classTemplateService.suggestParentClassIris(templateCode));
 	}
 
 }
