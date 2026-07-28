@@ -19,9 +19,10 @@ import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.riot.RDFLanguages;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -32,16 +33,13 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * Jena 解析 TTL + Caffeine 缓存 Model（复用 DD3 InheritedViewService 缓存范式）。
  * 三套本体：qudt（单位）/ brick（类）/ cco（注释属性）。首次解析 ~5s，缓存后查询 <50ms（AC-7.4）。
+ * TTL 文件打包在 classpath:/ontology/ 下，随 jar 分发，无 CWD/外部路径依赖。
  *
  * @author pig
  * @date 2026-07-28
  */
 @Service
 public class ReferenceOntologyService {
-
-	/** 参考本体库根目录（相对 classpath 或绝对路径） */
-	@Value("${pig.ontology.reference-base:docs/ontology/参考开源本体库}")
-	private String referenceBase;
 
 	/** Caffeine 缓存：key=本体标识（qudt/brick/cco），value=Jena Model，TTL 30min（AC-7.4） */
 	private final Cache<String, Model> modelCache = Caffeine.newBuilder()
@@ -178,10 +176,18 @@ public class ReferenceOntologyService {
 		if (file == null) {
 			throw new IllegalArgumentException("未知的参考本体: " + ont);
 		}
-		String path = referenceBase + "/" + file;
-		Model model = ModelFactory.createDefaultModel();
-		RDFDataMgr.read(model, path, RDFLanguages.TURTLE);
-		return model;
+		String classpath = "ontology/" + file;
+		try (InputStream in = ReferenceOntologyService.class.getClassLoader().getResourceAsStream(classpath)) {
+			if (in == null) {
+				throw new IllegalStateException("参考本体 classpath 资源不存在: " + classpath);
+			}
+			Model model = ModelFactory.createDefaultModel();
+			RDFDataMgr.read(model, in, RDFLanguages.TURTLE);
+			return model;
+		}
+		catch (IOException e) {
+			throw new IllegalStateException("加载参考本体失败: " + classpath, e);
+		}
 	}
 
 	private Long countItems(String ont) {
