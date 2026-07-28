@@ -5,7 +5,7 @@
 			<el-table-column :label="t('classTemplate.propertyRefs')" prop="propertyTemplateCode" show-overflow-tooltip />
 			<el-table-column :label="t('classTemplate.refType')" prop="refType" width="110">
 				<template #default="scope">
-					<el-tag :type="scope.row.refType === 'property' ? '' : 'success'" size="small">
+					<el-tag :type="scope.row.refType === 'property' ? undefined : 'success'" size="small">
 						{{ scope.row.refType === 'property' ? t('classTemplate.refTypeProperty') : t('classTemplate.refTypeRelationship') }}
 					</el-tag>
 				</template>
@@ -15,7 +15,7 @@
 				<template #default="scope">
 					<el-tag
 						v-if="sourceTagConfig[scope.row.source as keyof typeof sourceTagConfig]"
-						:type="sourceTagConfig[scope.row.source as keyof typeof sourceTagConfig].type"
+						:type="sourceTagConfig[scope.row.source as keyof typeof sourceTagConfig].type || undefined"
 						size="small"
 					>
 						{{ sourceTagConfig[scope.row.source as keyof typeof sourceTagConfig].label }}

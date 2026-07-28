@@ -1,3 +1,5 @@
+import { useI18n } from 'vue-i18n';
+
 /**
  * 单位注册表页共享选项（index.vue / form.vue / convert-panel.vue 复用，消除重复定义）
  */

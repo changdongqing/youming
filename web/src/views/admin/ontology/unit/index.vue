@@ -166,11 +166,11 @@ const state: BasicTableProps = reactive<BasicTableProps>({
 		selectedQkLabel: '',
 		currentUnits: [] as any[],
 		queryList: async () => {
-			// QueryTree 的 query：返回 Promise，数据需树形结构。
+			// QueryTree 的 query：约定返回 Promise<axios 响应>，组件取 r.data 作树形数据。
 			// 量纲是扁平 8 项，包一层"量纲"根节点形成单层树。
 			const { data } = await listQuantityKind();
 			const kinds = (data || []).map((k: any) => ({ ...k, icon: qkIcon(k.label) }));
-			return [{ id: 'root', label: t('unit.quantityKind'), labelCn: t('unit.quantityKind'), children: kinds }];
+			return { data: [{ id: 'root', label: t('unit.quantityKind'), labelCn: t('unit.quantityKind'), children: kinds }] };
 		},
 	} as any),
 });

@@ -34,9 +34,10 @@ export function useClassTemplateOptions() {
 
 	/**
 	 * 继承视图 source 三态标记的 tag 配置（node / inherited / overridden）。
+	 * type 为 undefined 时使用 ElTag 默认样式（ElTag 不接受空串）。
 	 */
 	const sourceTagConfig = computed(() => ({
-		node: { type: '' as const, label: t('classTemplate.sourceNode') },
+		node: { type: undefined as '' | undefined, label: t('classTemplate.sourceNode') },
 		inherited: { type: 'info' as const, label: t('classTemplate.sourceInherited') },
 		overridden: { type: 'warning' as const, label: t('classTemplate.sourceOverridden') },
 	}));
