@@ -28,8 +28,12 @@ import com.pig4cloud.pig.ontology.api.entity.PropertyTemplate;
 import com.pig4cloud.pig.ontology.api.vo.ClassTemplateNodeVO;
 import com.pig4cloud.pig.ontology.api.vo.InheritedViewVO;
 import com.pig4cloud.pig.ontology.api.vo.PropertyTemplateSupplyVO;
+import com.pig4cloud.pig.ontology.api.vo.UnitConvertResultVO;
+import com.pig4cloud.pig.ontology.api.vo.UnitSupplyVO;
 import com.pig4cloud.pig.ontology.service.ClassTemplateService;
 import com.pig4cloud.pig.ontology.service.PropertyTemplateService;
+import com.pig4cloud.pig.ontology.service.UnitConversionService;
+import com.pig4cloud.pig.ontology.service.UnitService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,6 +41,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -61,6 +66,10 @@ public class SupplyController {
 	private final PropertyTemplateService propertyTemplateService;
 
 	private final ClassTemplateService classTemplateService;
+
+	private final UnitService unitService;
+
+	private final UnitConversionService unitConversionService;
 
 	@GetMapping("/property-templates")
 	@Operation(summary = "属性模板供给", description = "按 kind/category 拉取，默认排除弃用")
@@ -105,6 +114,23 @@ public class SupplyController {
 	@HasPermission("ont_supply_view")
 	public R<List<String>> suggestClassHierarchy(@RequestParam String templateCode) {
 		return R.ok(classTemplateService.suggestParentClassIris(templateCode));
+	}
+
+	@GetMapping("/units")
+	@Operation(summary = "单位供给", description = "按量纲分组返回，含换算系数（10.5，AC-5.4）")
+	@HasPermission("ont_supply_view")
+	public R<List<UnitSupplyVO>> supplyUnits(
+			@RequestParam(required = false) String quantityKindIri,
+			@RequestParam(defaultValue = "false") Boolean includeDeprecated) {
+		return R.ok(unitService.supplyList(quantityKindIri, includeDeprecated));
+	}
+
+	@GetMapping("/units/convert")
+	@Operation(summary = "换算供给", description = "同量纲换算，跨量纲返 null（10.5，AC-3.3）")
+	@HasPermission("ont_supply_view")
+	public R<UnitConvertResultVO> supplyConvert(@RequestParam BigDecimal value, @RequestParam String fromIri,
+			@RequestParam String toIri) {
+		return R.ok(unitConversionService.convert(value, fromIri, toIri));
 	}
 
 }
