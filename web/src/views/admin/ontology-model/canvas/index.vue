@@ -57,13 +57,13 @@ const previewPanelRef = ref();
 const projectList = ref<any[]>([]);
 const namespaceBase = ref('');
 
-const { initGraph, renderGraph, destroyGraph, getGraph, autoLayout } = useCanvas();
-const { handleDrop, handleEdgeConnected } = useCanvasDnd(toRef(state, 'projectId'), namespaceBase);
-
 const state = reactive({
 	projectId: '',
 	loading: false,
 });
+
+const { initGraph, renderGraph, destroyGraph, getGraph, autoLayout } = useCanvas();
+const { handleDrop, handleEdgeConnected } = useCanvasDnd(toRef(state, 'projectId'), namespaceBase);
 
 // 初始化画布
 onMounted(async () => {
