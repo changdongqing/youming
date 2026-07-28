@@ -42,10 +42,11 @@ import 'codemirror/theme/darcula.css';
 // 插件：当前行高亮
 import 'codemirror/addon/selection/active-line';
 
-// 语言模式：Velocity 模板、Shell 脚本、C/Java/Go 等类 C 语言
+// 语言模式：Velocity 模板、Shell 脚本、C/Java/Go 等类 C 语言、Turtle（RDF）
 import 'codemirror/mode/velocity/velocity';
 import 'codemirror/mode/shell/shell';
 import 'codemirror/mode/clike/clike';
+import 'codemirror/mode/turtle/turtle';
 
 export default {
 	components: {
