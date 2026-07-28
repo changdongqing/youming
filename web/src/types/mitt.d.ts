@@ -23,6 +23,12 @@ declare type MittType<T = any> = {
 	openShareTagsView?: string;
 	onTagsViewRefreshRouterView?: T;
 	onCurrentContextmenuClick?: T;
+	// 画布事件键（DD11 可视化建模画布）
+	canvasNodeAdded?: T; // 新增节点后刷新画布 + 序列化预览
+	canvasEdgeAdded?: T; // 新增边后刷新序列化预览
+	openPropertyDrawer?: T; // 双击节点打开属性抽屉
+	edgeConnected?: T; // 边连接完成触发关系创建
+	refreshSerializePreview?: T; // 画布操作后触发防抖预览
 };
 
 // mitt 参数类型定义
