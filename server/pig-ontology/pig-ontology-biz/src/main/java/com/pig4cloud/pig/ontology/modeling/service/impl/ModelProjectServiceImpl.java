@@ -6,8 +6,10 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.pig4cloud.pig.common.core.util.R;
+import com.pig4cloud.pig.ontology.modeling.entity.ModelClass;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelPrefix;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelProject;
+import com.pig4cloud.pig.ontology.modeling.mapper.ModelClassMapper;
 import com.pig4cloud.pig.ontology.modeling.mapper.ModelPrefixMapper;
 import com.pig4cloud.pig.ontology.modeling.mapper.ModelProjectMapper;
 import com.pig4cloud.pig.ontology.modeling.service.ModelProjectService;
@@ -34,6 +36,8 @@ public class ModelProjectServiceImpl extends ServiceImpl<ModelProjectMapper, Mod
 	private static final Set<String> VALID_FORMAT = Set.of("TTL", "OWL_XML");
 
 	private final ModelPrefixMapper modelPrefixMapper;
+
+	private final ModelClassMapper modelClassMapper;
 
 	@Override
 	public IPage<ModelProject> page(Page page, ModelProject project) {
@@ -124,11 +128,12 @@ public class ModelProjectServiceImpl extends ServiceImpl<ModelProjectMapper, Mod
 		//    本 DD 已建 ont_model_prefix，可直接操作
 		modelPrefixMapper.delete(Wrappers.<ModelPrefix>lambdaQuery()
 			.eq(ModelPrefix::getProjectId, id));
-		// 2. 类实体关联校验：移交 DD8
-		//    DD8 建 ont_model_class 后，在 ModelClass 删除链路或此处补充：
-		//    long classCount = modelClassMapper.selectCount(...projectId=id);
-		//    if (classCount > 0) return R.failed("项目下存在 N 个类实体，无法删除");
-		//    本 DD 不预埋引用未存在 Mapper 的代码（避免编译/语义混淆）
+		// 2. 类实体关联校验（DD8 建 ont_model_class 后回填生效，AC-10.1）
+		long classCount = modelClassMapper.selectCount(Wrappers.<ModelClass>lambdaQuery()
+			.eq(ModelClass::getProjectId, id));
+		if (classCount > 0) {
+			return R.failed("项目下存在 " + classCount + " 个类实体，无法删除");
+		}
 		return R.ok(removeById(id));
 	}
 
