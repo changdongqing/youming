@@ -8,7 +8,14 @@
 | 设计计划 | 《本体建模功能详细设计计划.md》DD10（M8） |
 | 前置依赖 | DD8 已落地（ont_model_class + 属性表就绪）；DD9 已落地（ont_model_subclassof + 属性业务逻辑就绪）；治理域 DD5/DD6 已落地（Supply API annotation-properties 可消费，jena-arq 5.3.0 已引入） |
 | 编写日期 | 2026-07-28 |
-| 文档状态 | 待评审 |
+| 文档状态 | 评审通过（附优化项已合入），进入实现 |
+
+> **评审决策记录**（2026-07-28 评审合入）：
+> - **消费方式改为方案 B**：`SerializationService`/`ParsingService` 注入同模块 `AnnotationPropertyService`（`supplyList`/`list` 公开方法）获取注释属性注册表，不再走 HTTP RestTemplate。与 DD8/9 方案 B 决策一致；消除 `ont_supply_view` 鉴权透传难题；强类型 `AnnotationProperty` 替代 Map 转换。
+> - **注解驱动修正**（P-2）：删除 `writeClassAnnotations`/`writeDatatypePropertyAnnotations`/`writeObjectPropertyAnnotations` 的死参数 `annotationProps`（原参数传入但内部从不引用）。序列化侧按字段值直接写 `ont:xxx` 注解；注册表（`AnnotationPropertyService.list`）用于**解析侧校验注解合法性**（`checkUnknownAnnotations` 过滤注册表外 localName）+ 序列化侧可选校验（只写注册表内声明的 localName，未声明的跳过并 warn）。文档明确"序列化按字段值直接写，注册表校验合法性"，消除虚假驱动。
+> - **subClassOf 解析过滤匿名类**（P-3）：解析 `rdfs:subClassOf` 时用 `isURIResource()` 过滤匿名 bnode（owl:Restriction 约束类），只处理具名父类 IRI。
+> - **删除 ImportDTO**（P-4）：Controller import 端点用 `@RequestParam` 接收 conflictStrategy（multipart 场景下表单参数更自然），ImportDTO 未使用，删除。
+> - **缓存失效明确挂载点**（P-5）：SerializationService 提供 `invalidateCache(projectId)` 公开方法；DD8/DD9 的 11 个写方法出口调 `serializationService.invalidateCache(projectId)`，用 `@Lazy` 注入避免循环依赖。
 
 ---
 
@@ -90,7 +97,8 @@ server/pig-common/pig-common-data/src/main/resources/db/migration/
 
 ### 2.3 依赖变更清单
 
-无新增依赖。复用 jena-arq 5.3.0（DD6 引入）+ caffeine（DD3 引入）+ hutool IoUtil（pig 框架自带）。
+无新增 Maven 依赖。复用 jena-arq 5.3.0（DD6 引入，pig-ontology-biz pom 直接声明）+ caffeine（DD3 引入）+ hutool IoUtil（pig 框架自带）。
+注释属性注册表消费采用**方案 B**：同模块注入 `AnnotationPropertyService`（`supplyList`/`list` 公开方法），不走 HTTP，无新增 RestTemplate 配置。
 
 ### 2.4 前端文件清单
 
@@ -352,9 +360,11 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.pig4cloud.pig.ontology.api.entity.AnnotationProperty;
 import com.pig4cloud.pig.ontology.modeling.entity.*;
 import com.pig4cloud.pig.ontology.modeling.mapper.*;
 import com.pig4cloud.pig.ontology.modeling.vo.SerializePreviewVO;
+import com.pig4cloud.pig.ontology.service.AnnotationPropertyService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.jena.rdf.model.*;
@@ -365,17 +375,17 @@ import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
 import org.apache.jena.vocabulary.XSD;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 import java.io.ByteArrayOutputStream;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * RDF 序列化核心 Service（FR-15）
  * <p>
  * 查建模域 4 张表构建 Jena Model -> RDFDataMgr.write 序列化为 Turtle/OWL XML。
- * 方案 B 默认（带前缀独立副本），注释属性注册表驱动 ont:xxx 注解自动写入。
+ * 方案 B 默认（带前缀独立副本），注释属性注册表校验 ont:xxx 注解合法性。
  *
  * @author pig
  * @date 2026-07-28
@@ -386,7 +396,6 @@ import java.util.concurrent.TimeUnit;
 public class SerializationService {
 
 	private static final String ONT_NS = "http://youming.com/ontology/annotation#";
-	private static final String SUPPLY_BASE = "http://localhost:9999/admin/ont/supply/v1";
 
 	/** 序列化缓存：key=projectId+format，TTL 5min，建模操作时失效 */
 	private final Cache<String, String> serializeCache = Caffeine.newBuilder()
@@ -399,7 +408,7 @@ public class SerializationService {
 	private final ModelObjectPropertyMapper objPropMapper;
 	private final ModelSubclassOfMapper subclassOfMapper;
 	private final ModelProjectMapper modelProjectMapper;
-	private final RestTemplate restTemplate;
+	private final AnnotationPropertyService annotationPropertyService;
 
 	/**
 	 * 序列化预览（AC-15.8）
@@ -459,8 +468,8 @@ public class SerializationService {
 		model.setNsPrefix("xsd", XSD.getURI());
 		model.setNsPrefix("ont", ONT_NS);
 
-		// 拉取注释属性注册表（AC-15.5）
-		List<Map<String, Object>> annotationProps = fetchAnnotationProperties();
+		// 拉取注释属性注册表 localName 集合（AC-15.5，方案B：同模块 AnnotationPropertyService）
+		Set<String> validAnnotationNames = fetchAnnotationNames();
 
 		// 查项目前缀
 		ModelProject project = modelProjectMapper.selectById(projectId);
@@ -482,7 +491,8 @@ public class SerializationService {
 				classRes.addProperty(RDFS.label, cls.getLabel());
 			}
 			// 注解：ont:classificationCode / ont:icon / ont:color / ont:templateRef
-			writeClassAnnotations(model, classRes, cls, annotationProps);
+			// 按字段值直接写，注册表校验合法性（只写注册表内声明的 localName）
+			writeClassAnnotations(model, classRes, cls, validAnnotationNames);
 		}
 
 		// 2. 序列化 subClassOf（AC-15.7）
@@ -509,7 +519,7 @@ public class SerializationService {
 			if (StrUtil.isNotBlank(prop.getLabel())) {
 				propRes.addProperty(RDFS.label, prop.getLabel());
 			}
-			writeDatatypePropertyAnnotations(model, propRes, prop, annotationProps);
+			writeDatatypePropertyAnnotations(model, propRes, prop, validAnnotationNames);
 		}
 
 		// 4. 序列化对象属性（AC-15.3/15.5）
@@ -528,28 +538,51 @@ public class SerializationService {
 			if (StrUtil.isNotBlank(prop.getLabel())) {
 				propRes.addProperty(RDFS.label, prop.getLabel());
 			}
-			writeObjectPropertyAnnotations(model, propRes, prop, annotationProps);
+			writeObjectPropertyAnnotations(model, propRes, prop, validAnnotationNames);
 		}
 
 		return model;
 	}
 
 	/**
+	 * 拉取注释属性注册表 localName 集合（AC-15.5，方案B：同模块 AnnotationPropertyService）
+	 */
+	private Set<String> fetchAnnotationNames() {
+		try {
+			List<AnnotationProperty> list = annotationPropertyService.list(null);
+			return list.stream().map(AnnotationProperty::getLocalName).collect(Collectors.toSet());
+		}
+		catch (Exception e) {
+			log.warn("拉取注释属性注册表失败，序列化注解降级为不校验", e);
+			return Collections.emptySet();
+		}
+	}
+
+	/**
+	 * 写注解前校验 localName 是否在注册表内（AC-15.5）
+	 * @return true=注册表内允许写；false=注册表外跳过并 warn
+	 */
+	private boolean isValidAnnotation(String localName, Set<String> validNames) {
+		if (validNames.isEmpty()) {
+			return true; // 注册表拉取失败时降级为全部允许
+		}
+		return validNames.contains(localName);
+	}
+
+	/**
 	 * 写类注解（ont:classificationCode / ont:icon / ont:color / ont:templateRef）
 	 */
-	private void writeClassAnnotations(Model model, Resource res, ModelClass cls,
-			List<Map<String, Object>> annotationProps) {
-		if (StrUtil.isNotBlank(cls.getClassificationCode())) {
-			res.addProperty(model.createProperty(ONT_NS + "classificationCode"),
-					cls.getClassificationCode());
+	private void writeClassAnnotations(Model model, Resource res, ModelClass cls, Set<String> validNames) {
+		if (StrUtil.isNotBlank(cls.getClassificationCode()) && isValidAnnotation("classificationCode", validNames)) {
+			res.addProperty(model.createProperty(ONT_NS + "classificationCode"), cls.getClassificationCode());
 		}
-		if (StrUtil.isNotBlank(cls.getIcon())) {
+		if (StrUtil.isNotBlank(cls.getIcon()) && isValidAnnotation("icon", validNames)) {
 			res.addProperty(model.createProperty(ONT_NS + "icon"), cls.getIcon());
 		}
-		if (StrUtil.isNotBlank(cls.getColor())) {
+		if (StrUtil.isNotBlank(cls.getColor()) && isValidAnnotation("color", validNames)) {
 			res.addProperty(model.createProperty(ONT_NS + "color"), cls.getColor());
 		}
-		if (StrUtil.isNotBlank(cls.getTemplateCode())) {
+		if (StrUtil.isNotBlank(cls.getTemplateCode()) && isValidAnnotation("templateRef", validNames)) {
 			res.addProperty(model.createProperty(ONT_NS + "templateRef"), cls.getTemplateCode());
 		}
 	}
@@ -557,18 +590,17 @@ public class SerializationService {
 	/**
 	 * 写数据属性注解（ont:templateRef / ont:unitRef / ont:isIdentifier / ont:enumValues）
 	 */
-	private void writeDatatypePropertyAnnotations(Model model, Resource res, ModelDatatypeProperty prop,
-			List<Map<String, Object>> annotationProps) {
-		if (StrUtil.isNotBlank(prop.getTemplateCode())) {
+	private void writeDatatypePropertyAnnotations(Model model, Resource res, ModelDatatypeProperty prop, Set<String> validNames) {
+		if (StrUtil.isNotBlank(prop.getTemplateCode()) && isValidAnnotation("templateRef", validNames)) {
 			res.addProperty(model.createProperty(ONT_NS + "templateRef"), prop.getTemplateCode());
 		}
-		if (StrUtil.isNotBlank(prop.getUnitRef())) {
+		if (StrUtil.isNotBlank(prop.getUnitRef()) && isValidAnnotation("unitRef", validNames)) {
 			res.addProperty(model.createProperty(ONT_NS + "unitRef"), model.createResource(prop.getUnitRef()));
 		}
-		if ("1".equals(prop.getIsIdentifier())) {
+		if ("1".equals(prop.getIsIdentifier()) && isValidAnnotation("isIdentifier", validNames)) {
 			res.addLiteral(model.createProperty(ONT_NS + "isIdentifier"), true);
 		}
-		if (StrUtil.isNotBlank(prop.getEnumValues())) {
+		if (StrUtil.isNotBlank(prop.getEnumValues()) && isValidAnnotation("enumValues", validNames)) {
 			res.addProperty(model.createProperty(ONT_NS + "enumValues"), prop.getEnumValues());
 		}
 	}
@@ -576,29 +608,13 @@ public class SerializationService {
 	/**
 	 * 写对象属性注解（ont:templateRef / ont:cardinality）
 	 */
-	private void writeObjectPropertyAnnotations(Model model, Resource res, ModelObjectProperty prop,
-			List<Map<String, Object>> annotationProps) {
-		if (StrUtil.isNotBlank(prop.getTemplateCode())) {
+	private void writeObjectPropertyAnnotations(Model model, Resource res, ModelObjectProperty prop, Set<String> validNames) {
+		if (StrUtil.isNotBlank(prop.getTemplateCode()) && isValidAnnotation("templateRef", validNames)) {
 			res.addProperty(model.createProperty(ONT_NS + "templateRef"), prop.getTemplateCode());
 		}
-		String cardinality = formatCardinality(prop.getMinCardinality(), prop.getMaxCardinality());
-		res.addProperty(model.createProperty(ONT_NS + "cardinality"), cardinality);
-	}
-
-	/**
-	 * 拉取注释属性注册表（AC-15.5，消费 Supply annotation-properties）
-	 */
-	@SuppressWarnings("unchecked")
-	private List<Map<String, Object>> fetchAnnotationProperties() {
-		try {
-			R resp = restTemplate.getForObject(SUPPLY_BASE + "/annotation-properties", R.class);
-			return (resp != null && resp.getCode() == 0 && resp.getData() != null)
-					? (List<Map<String, Object>>) resp.getData()
-					: Collections.emptyList();
-		}
-		catch (Exception e) {
-			log.warn("拉取注释属性注册表失败，序列化注解降级为硬编码", e);
-			return Collections.emptyList();
+		if (isValidAnnotation("cardinality", validNames)) {
+			String cardinality = formatCardinality(prop.getMinCardinality(), prop.getMaxCardinality());
+			res.addProperty(model.createProperty(ONT_NS + "cardinality"), cardinality);
 		}
 	}
 
@@ -628,13 +644,14 @@ public class SerializationService {
 }
 ```
 
-> **核心设计点**：
-> - **Model 构建**：`ModelFactory.createDefaultModel()` -> 声明命名空间 -> 遍历 4 张表 add 三元组 -> `RDFDataMgr.write(out, model, lang)` 序列化（复用 DD6 已验证的 Jena API 范式）。
-> - **方案 B IRI**：类 IRI = class_iri（namespace_base + localName），数据属性 IRI = property_iri（{classLocalName}_{propLocalName}），对象属性 IRI = property_iri（{domainLocalName}_{propLocalName}）--直接用表中的 property_iri 字段，无需重新拼接。
-> - **注释属性驱动**（AC-15.5）：消费 `/supply/v1/annotation-properties` 拉取注册表，但实际注解写入逻辑按字段值直接写（ont:templateRef/ont:unitRef/ont:isIdentifier/ont:enumValues/ont:cardinality/ont:classificationCode/ont:icon/ont:color），注册表用于校验注解合法性（仅写注册表中声明的 localName）。
+> **核心设计点**（评审修订，方案 B）：
+> - **Model 构建**：`ModelFactory.createDefaultModel()` -> 声明命名空间 -> 遍历 4 张表 add 三元组 -> `RDFDataMgr.write(out, model, lang)` 序列化。全仓首个"写 Model"场景（DD6 仅有 read 范式），API 对偶正确。
+> - **方案 B IRI**：类 IRI = class_iri，数据属性 IRI = property_iri（{classLocalName}_{propLocalName}），对象属性 IRI = property_iri--直接用表中的字段，无需重新拼接。
+> - **注释属性注册表校验**（AC-15.5，评审修正 P-2）：注入 `AnnotationPropertyService.list(null)` 拉取注册表 localName 集合，序列化侧用 `isValidAnnotation(localName, validNames)` 校验每个注解是否在注册表内（只写注册表内声明的 localName，未声明的跳过；注册表拉取失败时降级为全部允许）。注解值按字段值直接写（ont:templateRef/ont:unitRef/ont:isIdentifier/ont:enumValues/ont:cardinality/ont:classificationCode/ont:icon/ont:color），消除原方案的死参数 `annotationProps`。
 > - **单位引用**（AC-15.6）：`ont:unitRef` 用 `rdf:resource` 引用 QUDT IRI（`model.createResource(prop.getUnitRef())`），不在本体重定义单位类。
 > - **缓存**：Caffeine `Cache<String, String>`，key=projectId+format，TTL 5min，建模操作时 `invalidateCache` 失效。
 > - **方案 A 禁用**（AC-15.4）：项目 `strategy='A'` 时返回提示文本，不执行序列化。
+> - **无需 RestTemplate**（方案 B 优势）：同模块注入 AnnotationPropertyService，无 HTTP 鉴权问题。
 
 ### 4.5 ParsingService - 解析核心
 
@@ -642,9 +659,11 @@ public class SerializationService {
 package com.pig4cloud.pig.ontology.modeling.service;
 
 import cn.hutool.core.util.StrUtil;
+import com.pig4cloud.pig.ontology.api.entity.AnnotationProperty;
 import com.pig4cloud.pig.ontology.modeling.entity.*;
 import com.pig4cloud.pig.ontology.modeling.mapper.*;
 import com.pig4cloud.pig.ontology.modeling.vo.ImportResultVO;
+import com.pig4cloud.pig.ontology.service.AnnotationPropertyService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.jena.rdf.model.*;
@@ -655,12 +674,11 @@ import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * RDF 解析与导入核心 Service（FR-16）
@@ -677,13 +695,12 @@ import java.util.*;
 public class ParsingService {
 
 	private static final String ONT_NS = "http://youming.com/ontology/annotation#";
-	private static final String SUPPLY_BASE = "http://localhost:9999/admin/ont/supply/v1";
 
 	private final ModelClassMapper modelClassMapper;
 	private final ModelDatatypePropertyMapper dtPropMapper;
 	private final ModelObjectPropertyMapper objPropMapper;
 	private final ModelSubclassOfMapper subclassOfMapper;
-	private final RestTemplate restTemplate;
+	private final AnnotationPropertyService annotationPropertyService;
 
 	/**
 	 * 解析导入 RDF 文件（AC-16.1~16.6）
@@ -758,11 +775,12 @@ public class ParsingService {
 			result.setClassCount(result.getClassCount() + 1);
 		}
 
-		// 2. 提取 subClassOf
+		// 2. 提取 subClassOf（过滤匿名类 owl:Restriction，P-3）
 		StmtIterator subIter = model.listStatements(null, RDFS.subClassOf, (RDFNode) null);
 		while (subIter.hasNext()) {
 			Statement stmt = subIter.next();
-			if (!stmt.getObject().isResource()) {
+			// 只处理具名父类（isURIResource 过滤匿名 bnode 如 owl:Restriction 约束类）
+			if (!stmt.getObject().isURIResource()) {
 				continue;
 			}
 			String childIri = stmt.getSubject().getURI();
@@ -775,6 +793,7 @@ public class ParsingService {
 				edge.setChildClassId(childId);
 				edge.setParentClassId(parentId);
 				edge.setSyncStatus("0");
+				edge.setRetryCount(0);
 				subclassOfMapper.insert(edge);
 				result.setSubclassOfCount(result.getSubclassOfCount() + 1);
 			}
@@ -932,22 +951,15 @@ public class ParsingService {
 		}
 	}
 
-	@SuppressWarnings("unchecked")
 	private Set<String> fetchAnnotationNames() {
 		try {
-			R resp = restTemplate.getForObject(SUPPLY_BASE + "/annotation-properties", R.class);
-			if (resp != null && resp.getCode() == 0 && resp.getData() != null) {
-				Set<String> names = new HashSet<>();
-				for (Map<String, Object> item : (List<Map<String, Object>>) resp.getData()) {
-					names.add((String) item.get("localName"));
-				}
-				return names;
-			}
+			List<AnnotationProperty> list = annotationPropertyService.list(null);
+			return list.stream().map(AnnotationProperty::getLocalName).collect(Collectors.toSet());
 		}
 		catch (Exception e) {
 			log.warn("拉取注释属性注册表失败", e);
+			return Collections.emptySet();
 		}
-		return Collections.emptySet();
 	}
 
 	private boolean validateTemplateExists(String templateCode) {
@@ -1328,11 +1340,11 @@ export default {
 | 序列化响应 P95（≤50 类） | <2s | Caffeine 缓存命中 <50ms；首次构建 Model 查 4 张表 + Jena write |
 | 解析导入 P95（≤50 类） | <3s | Jena `RDFDataMgr.read` 解析 + 逐条 insert（v1 单条 insert，后续可批量优化） |
 
-### 6.5 治理域消费边界（R-23）
+### 6.5 治理域消费边界（R-23，方案 B）
 
-- **只读消费 Supply API**：`/supply/v1/annotation-properties`（拉取注释属性注册表）。
-- **不注入治理域 Service**：全部走 HTTP RestTemplate。
-- **不写治理域表**：序列化/解析只读写建模域 4 张表。
+- **同模块只读 Service 注入**：`SerializationService`/`ParsingService` 注入治理域 `AnnotationPropertyService`（同 pig-ontology-biz 模块），调用其 `list(null)` 公开方法获取注释属性注册表。符合 R-23 "同模块内只读查询"豁免。
+- **不写治理域表**：序列化/解析只读写建模域 4 张表，不向 ont_annotation_property 写入。
+- **无需鉴权透传**：同进程方法调用，无 HTTP 鉴权问题（消除 `ont_supply_view` token 透传难题）。
 
 ### 6.6 方案 B IRI 规则（附录 C.1）
 
@@ -1395,7 +1407,6 @@ export default {
 | 新建 | `modeling/service/SerializationService.java` | 序列化核心（Model 构建 + Jena write + 注解驱动） |
 | 新建 | `modeling/service/ParsingService.java` | 解析核心（Jena read + 溯源识别 + 冲突处理） |
 | 新建 | `modeling/service/ConsistencyValidator.java` | 往返一致性校验（isIsomorphicWith） |
-| 新建 | `modeling/dto/ImportDTO.java` | 导入请求 DTO |
 | 新建 | `modeling/vo/SerializePreviewVO.java` | 序列化预览 VO |
 | 新建 | `modeling/vo/ImportResultVO.java` | 导入结果报告 VO |
 | 新建 | `V15__ont_model_serialize_seed.sql` | 菜单种子（11400 段） |
@@ -1406,7 +1417,7 @@ export default {
 | 新建 | `views/admin/ontology-model/serialize/i18n/zh-cn.ts` | 中文词条 |
 | 新建 | `views/admin/ontology-model/serialize/i18n/en.ts` | 英文词条 |
 | 修改 | `web/src/components/CodeEditor/index.vue` | 补充引入 `codemirror/mode/turtle/turtle` |
-| 修改 | DD8/DD9 建模操作 Service | 建模写操作后调 `serializationService.invalidateCache(projectId)` |
+| 修改 | DD8/DD9 建模操作 Service | 11 个写方法出口调 `serializationService.invalidateCache(projectId)`，用 `@Lazy` 注入避免循环依赖（P-5） |
 
 ---
 
@@ -1416,7 +1427,7 @@ export default {
 |---|---|---|---|
 | 序列化默认方案 B | v1 默认 B（带前缀独立副本），零风险（PRD 5.2/附录 B.1） | SerializationService 用表中 property_iri（方案B格式） | ✓ |
 | 方案 A 禁用 | v1 禁用切换，返回提示（PRD FR-15.4） | strategy='A' 返回提示文本 | ✓ |
-| 注释属性驱动 | 按注册表自动写入 ont:xxx（PRD FR-15.5） | 消费 Supply annotation-properties + writeAnnotations | ✓ |
+| 注释属性驱动 | 按注册表自动写入 ont:xxx（PRD FR-15.5） | 方案B：注入 AnnotationPropertyService，序列化侧校验 localName 合法性（只写注册表内声明的），注解值按字段值直接写 | ✓ |
 | 单位 IRI 引用 | ont:unitRef 引用 QUDT IRI（PRD FR-15.6/附录 B.1） | model.createResource(unitRef) 写 rdf:resource | ✓ |
 | 往返一致性 | ≥99%，图同构（PRD FR-16.5/NFR-R2） | ConsistencyValidator + isIsomorphicWith | ✓ |
 | 导入冲突处理 | 覆盖/跳过/重命名（PRD FR-16.6） | ParsingService conflictStrategy 三策略 | ✓ |
@@ -1427,8 +1438,8 @@ export default {
 | 菜单 ID | 11400 段（PRD 13.1） | 11400 菜单 + 11401~11402 按钮 | ✓ |
 | 权限标识 | ont_serialize_view / ont_serialize_manage（PRD 13.2） | Controller @HasPermission 对齐 | ✓ |
 | Flyway | V15（PRD 9 / 设计计划 3.2） | V15__ont_model_serialize_seed.sql（仅菜单） | ✓ |
-| 治理域只读消费 | 不修改治理域表/接口（PRD NFR-C3/R-23） | 只调 Supply annotation-properties，不写治理域表 | ✓ |
-| 前端预览 | codemirror 展示 Turtle（PRD FR-15.8/12.6） | 复用 CodeEditor 组件 + mode=turtle | ✓ |
+| 治理域只读消费 | 不修改治理域表/接口（PRD NFR-C3/R-23） | 方案B：注入 AnnotationPropertyService.list 公开方法，不注入 Mapper | ✓ |
+| 前端预览 | codemirror 展示 Turtle（PRD FR-15.8/12.6） | 复用 CodeEditor 组件 + 补充 import turtle mode | ✓ |
 
 ---
 
