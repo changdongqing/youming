@@ -4,11 +4,16 @@
 |---|---|
 | 文档名称 | 类实体创建与模板实例化 详细设计 |
 | 里程碑 | M6（FR-11） |
-| 上游 PRD | 《本体建模功能产品需求文档.md》v1.0（FR-11 / AC-11.1~11.8 / 9.3/9.4/9.5 / 10.2 / 十一节场景一/三 / 十四节 M6） |
+| 上游 PRD | 《本体建模功能产品需求文档.md》v1.0（FR-11 / AC-11.1~11.8 / 9.3（+9.4/9.5 属性表前移）/ 10.2 / 第十一节场景一/三 / 第十四节 M6） |
 | 设计计划 | 《本体建模功能详细设计计划.md》DD8（M6） |
 | 前置依赖 | DD7 已落地（ont_model_project / ont_model_prefix 就绪，项目容器与命名空间可用）；治理域 DD2/DD3 已落地（Supply API class-template/tree + class-template/{code}/inherited + property-templates 可消费） |
 | 编写日期 | 2026-07-28 |
-| 文档状态 | 待评审 |
+| 文档状态 | 评审通过（附优化项已合入），进入实现 |
+
+> **评审决策记录**（2026-07-28 评审合入）：
+> - **消费方式改为方案 B**：`ClassInstantiationService` 通过**同模块只读 Service 注入**（`ClassTemplateService.inheritedView` + `PropertyTemplateService`）消费治理域能力，不再走 HTTP RestTemplate。依据 PRD R-23 "同模块内只读查询"豁免；消除鉴权 token 透传问题（P-1）、序列化开销、localhost 自调用线程占用。只读调用，不写治理域表。
+> - **补充 instantiate 端点**：本 DD 实现 PRD 10.2 规定的 `POST /{id}/instantiate`（对已有空白类追加模板属性，服务场景三），不只做新建时实例化。
+> - **删除 ModelingConfig**：pig-common-core 已全局注册 RestTemplate Bean（方案 B 改用 Service 注入后连 RestTemplate 也不需要）。
 
 ---
 
@@ -29,10 +34,11 @@
 | 类实体 CRUD（FR-11.1/11.6/11.7/11.8） | 数据属性独立建模（手动创建/编辑/删除，DD9/FR-12） |
 | 基于分类模板创建 + 实例化（FR-11.2） | 对象属性独立建模（domain/range 编辑，DD9/FR-13） |
 | 空白类创建（FR-11.3） | 类层级 subClassOf 建立（DD9/FR-14） |
-| 模板实例化溯源 templateRef（FR-11.4） | 镜像回推（DD9/FR-14.3） |
-| 分类模板溯源 classificationCode（FR-11.5） | 序列化（DD10/FR-15） |
-| 属性表 DDL 前移到 V13 | 画布拖拽创建（DD11/FR-17，DD8 提供表单式创建） |
-| 消费 Supply API（inherited + property-templates） | 个体实例（M10/DD12，Out of Scope） |
+| **对已有类追加模板实例化（`POST /{id}/instantiate`，场景三）** | 镜像回推（DD9/FR-14.3） |
+| 模板实例化溯源 templateRef（FR-11.4） | 序列化（DD10/FR-15） |
+| 分类模板溯源 classificationCode（FR-11.5） | 画布拖拽创建（DD11/FR-17，DD8 提供表单式创建） |
+| 属性表 DDL 前移到 V13 | 个体实例（M10/DD12，Out of Scope） |
+| 消费治理域（方案 B：同模块只读 Service 注入） | |
 
 > **属性表前移说明**：PRD 9.4/9.5 原将 `ont_model_datatype_property`/`ont_model_object_property` 划归 DD9/V14。但 DD8 模板实例化（FR-11.2）必须同时创建类 + 属性，否则"实例化"只产空壳类无意义。因此将两张属性表的 **DDL 前移到 V13**（与 ont_model_class 同脚本），DD9 不再建表只实现属性的手动 CRUD/单位绑定/枚举/基数等业务逻辑。设计计划相应调整。
 
@@ -41,7 +47,7 @@
 | PRD AC | 本 DD 实现点 |
 |---|---|
 | AC-11.1 类创建 + IRI 唯一 | 4.3 ModelClassController.save + 4.5 ServiceImpl.saveClass（IRI = namespace_base + localName，预查重 + DB 唯一约束） |
-| AC-11.2 基于模板创建调 inherited + 批量实例化 | 4.6 ClassInstantiationService（调 `/supply/v1/class-template/{code}/inherited`，遍历 properties 批量建属性） |
+| AC-11.2 基于模板创建调 inherited + 批量实例化 | 4.6 ClassInstantiationService（同模块注入 `ClassTemplateService.inheritedView`，遍历 properties 批量建属性）；**新建时实例化**（saveClass 内）+ **独立 instantiate 端点**（POST /{id}/instantiate，场景三） |
 | AC-11.3 空白类创建 + 属性列表初始为空 | 4.5 ServiceImpl.saveClass（templateCode 为空时跳过实例化） |
 | AC-11.4 实例化属性 templateRef 非空 | 4.6 ClassInstantiationService（每条属性 template_ref = propertyTemplateCode） |
 | AC-11.5 基于模板的类 classificationCode 非空 | 4.5 ServiceImpl.saveClass（从 InheritedViewVO 复制 classificationCode） |
@@ -89,7 +95,7 @@ server/pig-common/pig-common-data/src/main/resources/db/migration/
 ### 2.3 依赖变更清单
 
 无新增依赖。复用 pig-ontology-biz 已有依赖（MyBatis-Plus / hutool / Caffeine / springdoc）。
-治理域 Supply API 通过 HTTP 消费（RestTemplate，同进程 localhost 调用）。
+治理域消费采用**方案 B**：同模块只读 Service 注入（`ClassTemplateService` + `PropertyTemplateService` + `InheritedViewService`），不走 HTTP，无新增 RestTemplate 配置。
 
 ### 2.4 前端文件清单
 
@@ -606,8 +612,18 @@ public class ModelClassController {
 	public R removeById(@PathVariable Long id) {
 		return modelClassService.removeClass(id);
 	}
+
+	@SysLog("模板实例化属性")
+	@PostMapping("/{id}/instantiate")
+	@Operation(summary = "基于分类模板实例化属性", description = "对已有空白类追加模板属性（场景三，PRD 10.2）")
+	@HasPermission("ont_class_model_manage")
+	public R instantiate(@PathVariable Long id, @Valid @RequestBody ClassInstantiateDTO dto) {
+		return modelClassService.instantiateFromClass(id, dto);
+	}
 }
 ```
+
+> **端点齐全性**（评审补充 P-2）：本 Controller 实现 PRD 10.2 全部 6 个端点（page/getById/save/PUT/DELETE/instantiate）。`POST /{id}/instantiate` 服务于场景三"空白类右键从模板实例化"，对已有类追加属性；`save` 内部实例化服务于场景一"新建时即选模板"。两者复用同一 `ClassInstantiationService.instantiate`。
 
 ### 4.4 DTO - ClassInstantiateDTO
 
@@ -642,21 +658,23 @@ public class ClassInstantiateDTO {
 ```java
 package com.pig4cloud.pig.ontology.modeling.service.impl;
 
-import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.pig4cloud.pig.common.core.util.R;
+import com.pig4cloud.pig.ontology.modeling.dto.ClassInstantiateDTO;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelClass;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelDatatypeProperty;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelObjectProperty;
+import com.pig4cloud.pig.ontology.modeling.entity.ModelProject;
 import com.pig4cloud.pig.ontology.modeling.mapper.ModelClassMapper;
 import com.pig4cloud.pig.ontology.modeling.mapper.ModelDatatypePropertyMapper;
 import com.pig4cloud.pig.ontology.modeling.mapper.ModelObjectPropertyMapper;
 import com.pig4cloud.pig.ontology.modeling.service.ClassInstantiationService;
 import com.pig4cloud.pig.ontology.modeling.service.ModelClassService;
+import com.pig4cloud.pig.ontology.modeling.service.ModelProjectService;
 import com.pig4cloud.pig.ontology.modeling.vo.ModelClassDetailVO;
 import lombok.AllArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
@@ -664,7 +682,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.List;
 
 /**
  * 本体类实体 Service 实现（FR-11）
@@ -680,6 +697,7 @@ public class ModelClassServiceImpl extends ServiceImpl<ModelClassMapper, ModelCl
 	private final ClassInstantiationService instantiationService;
 	private final ModelDatatypePropertyMapper datatypePropertyMapper;
 	private final ModelObjectPropertyMapper objectPropertyMapper;
+	private final ModelProjectService modelProjectService;
 
 	@Override
 	public IPage<ModelClass> page(Page page, ModelClass cls) {
@@ -699,7 +717,6 @@ public class ModelClassServiceImpl extends ServiceImpl<ModelClassMapper, ModelCl
 			return null;
 		}
 		ModelClassDetailVO vo = new ModelClassDetailVO();
-		// 基本信息
 		vo.setId(cls.getId());
 		vo.setProjectId(cls.getProjectId());
 		vo.setClassIri(cls.getClassIri());
@@ -730,26 +747,38 @@ public class ModelClassServiceImpl extends ServiceImpl<ModelClassMapper, ModelCl
 	@Override
 	@Transactional(rollbackFor = Exception.class)
 	public R saveClass(ModelClass cls) {
-		// 1. IRI 生成校验（前端传 localName，后端拼 IRI = namespace_base + localName）
-		//    前端也可直接传 classIri，后端校验与 localName 一致
-		if (StrUtil.isBlank(cls.getClassIri())) {
-			return R.failed("类 IRI 不能为空");
+		// 1. localName 必填（IRI 本地名）
+		if (StrUtil.isBlank(cls.getLocalName())) {
+			return R.failed("本地名不能为空");
 		}
-		// 2. 同项目 IRI 预查重
+		// 2. IRI 拼接与一致性校验（评审补充 P-5）
+		//    IRI = project.namespace_base + localName；若前端已传 classIri 则校验一致性
+		ModelProject project = modelProjectService.getById(cls.getProjectId());
+		if (project == null) {
+			return R.failed("项目不存在");
+		}
+		String expectedIri = project.getNamespaceBase() + cls.getLocalName();
+		if (StrUtil.isBlank(cls.getClassIri())) {
+			cls.setClassIri(expectedIri);
+		}
+		else if (!expectedIri.equals(cls.getClassIri())) {
+			return R.failed("类 IRI 与命名空间基址/本地名不一致，期望：" + expectedIri);
+		}
+		// 3. 同项目 IRI 预查重
 		long count = count(Wrappers.<ModelClass>lambdaQuery()
 			.eq(ModelClass::getProjectId, cls.getProjectId())
 			.eq(ModelClass::getClassIri, cls.getClassIri()));
 		if (count > 0) {
 			return R.failed("类 IRI '" + cls.getClassIri() + "' 在项目内已存在");
 		}
-		// 3. 保存类实体
+		// 4. 保存类实体
 		try {
 			save(cls);
 		}
 		catch (DuplicateKeyException e) {
 			return R.failed("类 IRI '" + cls.getClassIri() + "' 在项目内已存在");
 		}
-		// 4. 基于模板实例化属性（AC-11.2~11.5）
+		// 5. 基于模板实例化属性（AC-11.2~11.5）
 		if (StrUtil.isNotBlank(cls.getTemplateCode())) {
 			R instantiateResult = instantiationService.instantiate(cls);
 			if (instantiateResult.getCode() != 0) {
@@ -768,14 +797,40 @@ public class ModelClassServiceImpl extends ServiceImpl<ModelClassMapper, ModelCl
 		if (existing == null) {
 			return R.failed("类不存在");
 		}
-		// classIri / projectId 不可改（锁定）
+		// classIri / projectId / localName 不可改（IRI 标识锁定）
 		cls.setClassIri(existing.getClassIri());
 		cls.setProjectId(existing.getProjectId());
 		cls.setLocalName(existing.getLocalName());
 		// templateCode / classificationCode 不可改（溯源锁定）
 		cls.setTemplateCode(existing.getTemplateCode());
 		cls.setClassificationCode(existing.getClassificationCode());
+		// 空值保护（评审补充 P-5）：前端只传部分字段时，保留 existing 的非锁定可编辑字段
+		if (cls.getLabel() == null) {
+			cls.setLabel(existing.getLabel());
+		}
+		if (cls.getDescription() == null) {
+			cls.setDescription(existing.getDescription());
+		}
+		if (cls.getSortOrder() == null) {
+			cls.setSortOrder(existing.getSortOrder());
+		}
 		return R.ok(updateById(cls));
+	}
+
+	@Override
+	@Transactional(rollbackFor = Exception.class)
+	public R instantiateFromClass(Long id, ClassInstantiateDTO dto) {
+		// 场景三：对已有空白类追加模板属性（PRD 10.2 POST /{id}/instantiate）
+		ModelClass cls = getById(id);
+		if (cls == null) {
+			return R.failed("类不存在");
+		}
+		if (StrUtil.isNotBlank(cls.getTemplateCode()) && cls.getTemplateCode().equals(dto.getTemplateCode())) {
+			return R.failed("该类已基于模板 " + dto.getTemplateCode() + " 创建，不可重复实例化");
+		}
+		// 设置模板编码后走实例化；溯源字段（templateCode/classificationCode）由 instantiate 回填
+		cls.setTemplateCode(dto.getTemplateCode());
+		return instantiationService.instantiate(cls);
 	}
 
 	@Override
@@ -796,10 +851,6 @@ public class ModelClassServiceImpl extends ServiceImpl<ModelClassMapper, ModelCl
 			return R.failed("类被 " + objCount + " 个对象属性引用，无法删除");
 		}
 		// 删除校验：是否被 subClassOf 引用（DD9 建表后启用，v1 跳过）
-		// long subCount = subclassOfMapper.selectCount(...)
-		// if (subCount > 0) {
-		// 	return R.failed("类被 " + subCount + " 个类继承，无法删除");
-		// }
 		return R.ok(removeById(id));
 	}
 }
@@ -814,37 +865,38 @@ public class ModelClassServiceImpl extends ServiceImpl<ModelClassMapper, ModelCl
 ```java
 package com.pig4cloud.pig.ontology.modeling.service;
 
+import cn.hutool.core.collection.CollUtil;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.pig4cloud.pig.common.core.util.R;
+import com.pig4cloud.pig.ontology.api.entity.ClassTemplate;
+import com.pig4cloud.pig.ontology.api.entity.PropertyTemplate;
+import com.pig4cloud.pig.ontology.api.vo.InheritedPropertyVO;
+import com.pig4cloud.pig.ontology.api.vo.InheritedViewVO;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelClass;
+import com.pig4cloud.pig.ontology.modeling.entity.ModelDatatypeProperty;
+import com.pig4cloud.pig.ontology.modeling.entity.ModelObjectProperty;
+import com.pig4cloud.pig.ontology.modeling.mapper.ModelClassMapper;
+import com.pig4cloud.pig.ontology.modeling.mapper.ModelDatatypePropertyMapper;
+import com.pig4cloud.pig.ontology.modeling.mapper.ModelObjectPropertyMapper;
+import com.pig4cloud.pig.ontology.service.ClassTemplateService;
+import com.pig4cloud.pig.ontology.service.PropertyTemplateService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
 
-import com.pig4cloud.pig.ontology.modeling.entity.ModelDatatypeProperty;
-import com.pig4cloud.pig.ontology.modeling.entity.ModelObjectProperty;
-import com.pig4cloud.pig.ontology.modeling.mapper.ModelDatatypePropertyMapper;
-import com.pig4cloud.pig.ontology.modeling.mapper.ModelObjectPropertyMapper;
-
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * 模板实例化核心算法 Service（FR-11.2~11.5）
  * <p>
- * 消费治理域 Supply API（/supply/v1/class-template/{code}/inherited + /supply/v1/property-templates），
- * 从分类模板的继承视图批量生成数据属性/对象属性记录，挂 templateRef 溯源。
+ * 消费治理域能力（方案 B：同模块只读 Service 注入，PRD R-23 "同模块内只读查询"豁免）：
+ * - {@link ClassTemplateService#getByCode} + {@link ClassTemplateService#inheritedView} 取继承视图
+ * - {@link PropertyTemplateService} 取属性模板详情
  * <p>
- * 核心流程：
- * 1. 调 Supply API 获取继承视图（InheritedViewVO：合并父链属性 + 外观）
- * 2. 调 Supply API 获取属性模板详情（PropertyTemplateSupplyVO：type/unitRef/enumValues 等）
- * 3. 遍历继承视图的 properties 清单，按 refType 分流：
- *    - property + kind=datatype -> 创建 ModelDatatypeProperty（复制 type/unitRef/enumValues/isIdentifier）
- *    - property + kind=object  -> 创建 ModelObjectProperty（range 留空，DD9 手动补全）
- *    - relationship            -> 创建 ModelObjectProperty（range 留空，DD9 手动补全）
- * 4. 每条属性挂 templateRef = propertyTemplateCode（AC-11.4）
- * 5. 类挂 templateCode/classificationCode（从继承视图复制，AC-11.5）
+ * 不走 HTTP，不写治理域表，只读调用；强类型 VO/Entity，无 Map 字段名脆弱转换。
  *
  * @author pig
  * @date 2026-07-28
@@ -854,70 +906,64 @@ import java.util.Map;
 @Service
 public class ClassInstantiationService {
 
-	/** 供给接口基址（同进程，经 context-path /admin 或网关后为 /admin/ont/supply/v1） */
-	private static final String SUPPLY_BASE = "http://localhost:9999/admin/ont/supply/v1";
-
-	private final RestTemplate restTemplate;
+	private final ClassTemplateService classTemplateService;
+	private final PropertyTemplateService propertyTemplateService;
+	private final ModelClassMapper modelClassMapper;
 	private final ModelDatatypePropertyMapper datatypePropertyMapper;
 	private final ModelObjectPropertyMapper objectPropertyMapper;
 
 	/**
 	 * 从分类模板实例化属性到指定类（AC-11.2~11.5）
 	 *
-	 * @param cls 已保存的类实体（含 id/projectId/classIri/localName/templateCode）
+	 * @param cls 已保存的类实体（含 id/projectId/localName/templateCode）
 	 * @return R.ok() 成功 / R.failed() 失败
 	 */
-	@SuppressWarnings("unchecked")
 	@Transactional(rollbackFor = Exception.class)
 	public R instantiate(ModelClass cls) {
-		// 1. 调 Supply API 获取继承视图
-		String inheritedUrl = SUPPLY_BASE + "/class-template/" + cls.getTemplateCode() + "/inherited";
-		R<Map<String, Object>> inheritedResp;
-		try {
-			inheritedResp = restTemplate.getForObject(inheritedUrl, R.class);
-		}
-		catch (Exception e) {
-			log.error("调供给接口获取继承视图失败: templateCode={}", cls.getTemplateCode(), e);
-			return R.failed("获取分类模板继承视图失败");
-		}
-		if (inheritedResp == null || inheritedResp.getCode() != 0 || inheritedResp.getData() == null) {
+		// 1. 取分类模板实体（按 templateCode），不存在则失败
+		ClassTemplate template = classTemplateService.getByCode(cls.getTemplateCode());
+		if (template == null) {
 			return R.failed("分类模板不存在: " + cls.getTemplateCode());
 		}
-		Map<String, Object> inheritedView = inheritedResp.getData();
+		// 2. 取继承视图（InheritedViewService 缓存，强类型）
+		InheritedViewVO inheritedView = classTemplateService.inheritedView(template.getId());
+		if (inheritedView == null) {
+			return R.failed("获取分类模板继承视图失败");
+		}
 
-		// 2. 从继承视图复制类级溯源字段（AC-11.5）
-		String classificationCode = (String) inheritedView.get("classificationCode");
-		cls.setClassificationCode(classificationCode);
+		// 3. 从继承视图复制类级溯源字段（AC-11.5）
+		cls.setClassificationCode(inheritedView.getClassificationCode());
 		// 外观从继承视图复制（如类自身未设）
 		if (cls.getIcon() == null) {
-			cls.setIcon((String) inheritedView.get("icon"));
+			cls.setIcon(inheritedView.getIcon());
 		}
 		if (cls.getColor() == null) {
-			cls.setColor((String) inheritedView.get("color"));
+			cls.setColor(inheritedView.getColor());
 		}
+		modelClassMapper.updateById(cls);
 
-		// 3. 获取属性清单
-		List<Map<String, Object>> properties = (List<Map<String, Object>>) inheritedView.get("properties");
-		if (properties == null || properties.isEmpty()) {
+		// 4. 取属性清单（已合并父链，子覆盖父，最终生效版本）
+		List<InheritedPropertyVO> properties = inheritedView.getProperties();
+		if (CollUtil.isEmpty(properties)) {
 			return R.ok("模板无属性，已创建空白类");
 		}
 
-		// 4. 调 Supply API 批量获取属性模板详情（一次拉全量，内存匹配）
-		Map<String, Map<String, Object>> templateMap = fetchPropertyTemplates();
+		// 5. 批量取属性模板详情，按 templateCode 建索引（强类型 PropertyTemplate）
+		Map<String, PropertyTemplate> templateMap = fetchPropertyTemplates();
 
-		// 5. 遍历属性清单，按 refType + kind 分流创建
+		// 6. 遍历属性清单，按 kind 分流创建
 		int sortOrder = 0;
-		for (Map<String, Object> prop : properties) {
-			String propertyTemplateCode = (String) prop.get("propertyTemplateCode");
-			String refType = (String) prop.get("refType");
+		int created = 0;
+		for (InheritedPropertyVO prop : properties) {
+			String propertyTemplateCode = prop.getPropertyTemplateCode();
 			sortOrder++;
 
-			Map<String, Object> template = templateMap.get(propertyTemplateCode);
-			if (template == null) {
-				log.warn("属性模板不存在: {}，跳过", propertyTemplateCode);
+			PropertyTemplate propTpl = templateMap.get(propertyTemplateCode);
+			if (propTpl == null) {
+				log.warn("属性模板不存在或已弃用: {}，跳过", propertyTemplateCode);
 				continue;
 			}
-			String kind = (String) template.get("kind");
+			String kind = propTpl.getKind();
 
 			if ("datatype".equals(kind)) {
 				// 创建数据属性（复制 type/unitRef/enumValues/isIdentifier，AC-11.4）
@@ -926,49 +972,47 @@ public class ClassInstantiationService {
 				dtProp.setClassId(cls.getId());
 				dtProp.setLocalName(propertyTemplateCode);
 				dtProp.setPropertyIri(cls.getLocalName() + "_" + propertyTemplateCode);
-				dtProp.setLabel((String) template.get("label"));
+				dtProp.setLabel(propTpl.getLabel());
 				dtProp.setTemplateCode(propertyTemplateCode);
-				dtProp.setXsdType(mapXsdType((String) template.get("type")));
-				dtProp.setUnitRef((String) template.get("unitRef"));
-				dtProp.setEnumValues((String) template.get("enumValues"));
-				dtProp.setIsIdentifier((String) template.get("isIdentifier"));
+				dtProp.setXsdType(mapXsdType(propTpl.getType()));
+				dtProp.setUnitRef(propTpl.getUnitRef());
+				dtProp.setEnumValues(propTpl.getEnumValues());
+				dtProp.setIsIdentifier(propTpl.getIsIdentifier());
 				dtProp.setMinCardinality(0);
 				dtProp.setMaxCardinality(-1);
 				dtProp.setSortOrder(sortOrder);
 				datatypePropertyMapper.insert(dtProp);
+				created++;
 			}
 			else if ("object".equals(kind)) {
 				// 创建对象属性（range 留空，DD9 手动补全，AC-11.4）
 				ModelObjectProperty objProp = new ModelObjectProperty();
 				objProp.setProjectId(cls.getProjectId());
 				objProp.setDomainClassId(cls.getId());
-				objProp.setRangeClassId(null); // 对象属性 range 需手动选定（模板不含 range）
+				objProp.setRangeClassId(null); // 对象属性 range 需手动选定（模板不含 range，PRD FR-13.2）
 				objProp.setLocalName(propertyTemplateCode);
 				objProp.setPropertyIri(cls.getLocalName() + "_" + propertyTemplateCode);
-				objProp.setLabel((String) template.get("label"));
+				objProp.setLabel(propTpl.getLabel());
 				objProp.setTemplateCode(propertyTemplateCode);
 				objProp.setMinCardinality(0);
 				objProp.setMaxCardinality(-1);
 				objProp.setSortOrder(sortOrder);
 				objectPropertyMapper.insert(objProp);
+				created++;
 			}
 		}
-		return R.ok("实例化 " + sortOrder + " 个属性");
+		return R.ok("实例化 " + created + " 个属性");
 	}
 
 	/**
-	 * 批量拉取属性模板，按 templateCode 建索引
+	 * 批量拉取未弃用的属性模板，按 templateCode 建索引（强类型）
 	 */
-	@SuppressWarnings("unchecked")
-	private Map<String, Map<String, Object>> fetchPropertyTemplates() {
-		String url = SUPPLY_BASE + "/property-templates?includeDeprecated=false";
-		R<List<Map<String, Object>>> resp = restTemplate.getForObject(url, R.class);
-		if (resp == null || resp.getData() == null) {
-			return Map.of();
-		}
-		Map<String, Map<String, Object>> map = new java.util.HashMap<>();
-		for (Map<String, Object> item : resp.getData()) {
-			map.put((String) item.get("templateCode"), item);
+	private Map<String, PropertyTemplate> fetchPropertyTemplates() {
+		List<PropertyTemplate> list = propertyTemplateService.list(Wrappers.<PropertyTemplate>lambdaQuery()
+			.eq(PropertyTemplate::getDeprecated, "0"));
+		Map<String, PropertyTemplate> map = new HashMap<>();
+		for (PropertyTemplate item : list) {
+			map.put(item.getTemplateCode(), item);
 		}
 		return map;
 	}
@@ -992,22 +1036,15 @@ public class ClassInstantiationService {
 }
 ```
 
-> **核心设计点**：
-> - 消费 Supply API 走 HTTP RestTemplate（同进程 localhost:9999，单体模式；微服务模式经网关）。v1 简化用 RestTemplate，未来可抽 Feign。
-> - 继承视图 `properties` 清单中的每条已是**最终生效版本**（InheritedViewService.mergeRefs 已用 LinkedHashMap 保证子覆盖父），实例化直接用 propertyTemplateCode 拉模板详情。
+> **核心设计点**（评审修订，方案 B）：
+> - **同模块只读 Service 注入**：注入 `ClassTemplateService`/`PropertyTemplateService`（治理域 Service，同 pig-ontology-biz 模块同 JVM），符合 PRD R-23 "同模块内只读查询"豁免。**不走 HTTP，无鉴权 token 问题（P-1），无序列化开销，无 localhost 自调用线程占用**。
+> - **强类型调用**：用 `InheritedViewVO`/`InheritedPropertyVO`/`PropertyTemplate` 强类型 getter，替代原方案的 `Map<String,Object>` 字符串 key 转换（消除字段名拼写错误风险）。
+> - **不写治理域表**：仅调用只读方法（getByCode/inheritedView/list），不调用任何写方法，满足 R-23 "不写治理域表"。
+> - 继承视图 `properties` 清单中的每条已是**最终生效版本**（InheritedViewService.mergeRefs 已用 LinkedHashMap 保证子覆盖父）。
 > - 对象属性 range 留空（属性模板不含 range，PRD FR-13.2），DD9 手动补全。
 > - `mapXsdType` 将属性模板的 type（string/integer/decimal/boolean/datetime）映射为标准 XSD 类型。
 
-> **RestTemplate 配置**：需在 modeling 包内或启动类注册 `@Bean RestTemplate`（pig 框架默认可能未注册）。DD8 实现时补充配置类：
-> ```java
-> @Configuration
-> public class ModelingConfig {
->     @Bean
->     public RestTemplate restTemplate() {
->         return new RestTemplate();
->     }
-> }
-> ```
+> **无需 ModelingConfig**（评审修订 P-4）：方案 B 不使用 RestTemplate，pig-common-core 的全局 RestTemplate Bean 也无需关注。删除原计划的 `ModelingConfig.java`。
 
 ### 4.7 Mapper + Service 接口
 
@@ -1072,6 +1109,9 @@ public interface ModelClassService extends IService<ModelClass> {
 	R updateClass(ModelClass cls);
 
 	R removeClass(Long id);
+
+	/** 对已有类追加模板实例化（场景三，PRD 10.2 POST /{id}/instantiate） */
+	R instantiateFromClass(Long id, ClassInstantiateDTO dto);
 }
 ```
 
@@ -1188,13 +1228,13 @@ export function delObj(id: string) {
 	});
 }
 
-// ---------- 供给接口（消费治理域，选模板用） ----------
+// ---------- 供给接口（消费治理域，选模板用，前端预览继承属性） ----------
 
 export function supplyClassTemplateTree(treeRoot: string) {
 	return request({
 		url: '/admin/ont/supply/v1/class-template/tree',
 		method: 'get',
-		params: { treeRoot },
+		params: { treeRoot, includeDeprecated: false },
 	});
 }
 
@@ -1202,6 +1242,16 @@ export function supplyInherited(templateCode: string) {
 	return request({
 		url: '/admin/ont/supply/v1/class-template/' + templateCode + '/inherited',
 		method: 'get',
+	});
+}
+
+// ---------- 模板实例化（对已有类追加属性，场景三） ----------
+
+export function instantiateObj(id: string, templateCode: string) {
+	return request({
+		url: '/admin/ont/model/class/' + id + '/instantiate',
+		method: 'post',
+		data: { templateCode },
 	});
 }
 ```
@@ -1477,26 +1527,27 @@ export default {
 - MybatisPlusMetaObjectHandler 自动填充审计字段（同治理域）。
 - `@TableField(fill = FieldFill.INSERT/UPDATE)` + `@TableLogic` 标注（同 DD7）。
 
-### 6.4 治理域消费边界（R-23）
+### 6.4 治理域消费边界（R-23，方案 B）
 
-- **只读消费**：ClassInstantiationService 只调治理域 Supply API（GET），不调任何写接口。
-- **不注入治理域 Service**：不直接注入 `ClassTemplateService`/`PropertyTemplateService`，通过 HTTP 保持边界。
-- **不写治理域表**：不向 ont_class_template / ont_property_template 等表写入。
-- **只读查询治理域表**：v1 不直接查治理域表，全部走 Supply API（HTTP）。
+- **同模块只读 Service 注入**：ClassInstantiationService 注入治理域 `ClassTemplateService`/`PropertyTemplateService`（同 pig-ontology-biz 模块同 JVM），只调用只读方法（`getByCode`/`inheritedView`/`list`）。符合 PRD R-23 "建模域不引用治理域 Mapper/Service（只调 Supply/Sync API **或同模块内只读查询**）"中的"同模块内只读查询"豁免。
+- **不写治理域表**：不调用治理域 Service 的任何写方法（save/update/remove/deprecate 等），不向 ont_class_template / ont_property_template 等表写入。
+- **强类型调用**：直接用治理域 VO/Entity（InheritedViewVO/PropertyTemplate），无 HTTP 序列化与字段名 Map 转换。
+- **无需鉴权透传**：同进程方法调用，无 HTTP 鉴权问题（消除原方案 P-1 的 token 透传难题）。
 
 ### 6.5 事务
 
 - `saveClass` + `instantiate` 在同一 `@Transactional` 内：类实体保存 + 属性批量创建原子性，实例化失败回滚类实体。
+- `instantiateFromClass` + `instantiate` 同一事务：场景三追加实例化原子性。
 - `removeClass` 事务内校验 + 软删。
 
 ### 6.6 双形态验证
 
-| 形态 | Supply API 调用 | 预期 |
+| 形态 | 治理域消费 | 预期 |
 |---|---|---|
-| 单体 pig-boot | RestTemplate -> `http://localhost:9999/admin/ont/supply/v1/...` | 200 + 继承视图数据 |
-| 微服务 | RestTemplate -> 经 gateway -> `lb://pig-ontology-biz` | 200 + 继承视图数据 |
+| 单体 pig-boot | 同 JVM 方法调用 ClassTemplateService/PropertyTemplateService | 继承视图数据正确返回 |
+| 微服务 | 同 JVM 方法调用（pig-ontology-biz 单模块，治理域与建模域同进程） | 继承视图数据正确返回 |
 
-> **RestTemplate URL 策略**：v1 简化用 `localhost:9999`（单体模式）。微服务模式下需改为经网关或 Feign。实现时可通过配置项 `ont.supply.base-url` 注入，默认 `http://localhost:9999/admin/ont/supply/v1`。
+> **双形态一致性**（评审修订）：方案 B 下治理域与建模域同在 pig-ontology-biz 单模块，单体/微服务均为同 JVM 方法调用，**无 URL 配置差异，无需 ont.supply.base-url 配置项**。这是方案 B 相对原 HTTP 方案的额外优势（原方案微服务需改 localhost:9999 为网关地址）。
 
 ---
 
@@ -1506,7 +1557,8 @@ export default {
 |---|---|
 | 编译 | `mvn -pl pig-ontology/pig-ontology-biz compile` 通过；modeling 包新增类无编译错误 |
 | Flyway（V13） | pig-boot 启动后 `SELECT count(*) FROM ont_model_class` = 0；`SELECT count(*) FROM ont_model_datatype_property` = 0；`SELECT count(*) FROM ont_model_object_property` = 0；`SELECT menu_id FROM sys_menu WHERE menu_id BETWEEN 11200 AND 11204` = 5 条 |
-| 覆盖（AC-11.1） | `POST /admin/ont/model/class` 传 localName + projectId，后端拼 IRI，返回成功；重复 IRI 返回 `R.failed("类 IRI 'xxx' 在项目内已存在")` |
+| 覆盖（AC-11.1） | `POST /admin/ont/model/class` 传 localName + projectId（不传 classIri），后端拼 IRI = namespaceBase + localName，返回成功且 classIri 正确；重复 IRI 返回 `R.failed("类 IRI 'xxx' 在项目内已存在")`；传不一致的 classIri 返回 `R.failed("类 IRI 与命名空间基址/本地名不一致...")` |
+| 覆盖（场景三/instantiate） | 先建空白类（id=A），再 `POST /A/instantiate` 传 templateCode='pump'，返回成功，查 ont_model_datatype_property class_id=A 新增 4 条；对已基于模板的类重复 instantiate 同模板返回 `R.failed("该类已基于模板 ... 创建，不可重复实例化")` |
 | 覆盖（AC-11.2） | `POST` 传 templateCode='spray-pump'，后端调 Supply API inherited 端点，返回的类含 classificationCode='30-01-01'，属性表新增 5 条记录（泵 4 + 喷淋泵 1） |
 | 覆盖（AC-11.3） | `POST` 不传 templateCode，创建成功，查 ont_model_datatype_property 该 class_id 下 0 条 |
 | 覆盖（AC-11.4） | 实例化后查 `SELECT template_code FROM ont_model_datatype_property WHERE class_id=xx`，每条非空，值等于源属性模板 templateCode |
@@ -1514,7 +1566,7 @@ export default {
 | 覆盖（AC-11.6） | `PUT /{id}` 编辑 label 成功；编辑 classIri 被锁定（返回值 classIri 不变）；`DELETE /{id}` 有属性时返回 `R.failed("类下存在 N 个数据属性，无法删除")` |
 | 覆盖（AC-11.7） | `GET /page?projectId=xx&label=泵` 返回分页，label 模糊匹配；`GET /page?templateCode=pump` 只返回模板派生的类 |
 | 覆盖（AC-11.8） | `GET /{id}` 返回 DetailVO，含 datatypeProperties + objectProperties 列表 + parentClassIris（v1 空列表） |
-| Supply 消费 | 模板不存在时 `POST` 传 templateCode='xyz'，返回 `R.failed("分类模板不存在: xyz")`；类实体已回滚（查不到） |
+| Supply 消费 | 模板不存在时 `POST` 传 templateCode='xyz'，返回 `R.failed("分类模板不存在: xyz")`；类实体已回滚（查不到）。方案 B 同模块 Service 调用，无 HTTP 鉴权问题 |
 | 对象属性 range 留空 | 实例化对象属性模板（如 contains）后，查 `SELECT range_class_id FROM ont_model_object_property`，值为 NULL |
 | XSD 类型映射 | 实例化 price 模板（type=decimal）后，查 xsd_type='xsd:decimal'；name 模板 -> xsd:string |
 | 删除校验 | 类有对象属性引用（作为 range）时，删除返回 `R.failed("类被 N 个对象属性引用，无法删除")` |
@@ -1526,11 +1578,11 @@ export default {
 
 | 风险 | 缓解 |
 |---|---|
-| Supply API 调用失败导致实例化中断 | `@Transactional` 回滚已保存的类实体；返回友好错误；Supply API 已有 Caffeine 缓存，稳定性高 |
-| RestTemplate URL 硬编码 localhost:9999 | 配置项 `ont.supply.base-url` 注入，默认 localhost:9999；微服务模式改为网关地址或 Feign |
+| 治理域 Service 调用失败导致实例化中断 | `@Transactional` 回滚已保存的类实体；返回友好错误；InheritedViewService 已有 Caffeine 缓存，稳定性高 |
+| 边界模糊（建模域注入治理域 Service） | 方案 B 仅注入只读方法（getByCode/inheritedView/list），不调写方法；符合 R-23 "同模块内只读查询"豁免；强类型调用降低误用风险 |
 | 属性表前移影响 DD9 设计计划 | 设计计划 V14 相应调整（仅建 ont_model_subclassof + 11300 菜单）；DD9 不再建属性表，只实现手动 CRUD 业务逻辑 |
 | 对象属性 range 为空（模板不含 range） | 实例化时 range 留 NULL，DD9 前端属性编辑页提示补全 range；画布 DD11 拖拽建关系时直接补 range |
-| 属性模板已弃用（deprecated=1） | Supply API `includeDeprecated=false` 默认排除弃用模板；实例化时若模板已弃用，fetchPropertyTemplates 查不到则跳过并 warn |
+| 属性模板已弃用（deprecated=1） | fetchPropertyTemplates 用 `deprecated='0'` 过滤；实例化时若模板已弃用查不到则跳过并 warn |
 
 ---
 
@@ -1550,7 +1602,6 @@ export default {
 | 新建 | `modeling/controller/ModelClassController.java` | 类 Controller |
 | 新建 | `modeling/dto/ClassInstantiateDTO.java` | 实例化请求 DTO |
 | 新建 | `modeling/vo/ModelClassDetailVO.java` | 类详情 VO |
-| 新建 | `modeling/ModelingConfig.java` | RestTemplate Bean 配置 |
 | 新建 | `V13__ont_model_class_seed.sql` | 建三表 + 菜单种子 |
 | 新建 | `api/ontology-model/class.ts` | 前端 API |
 | 新建 | `views/admin/ontology-model/class/index.vue` | 类列表页 |
@@ -1572,7 +1623,7 @@ export default {
 | 模板实例化复制字段值 | 复制字段并挂 templateRef，非引用模板（PRD 5.2） | ClassInstantiationService 复制 type/unitRef 等 + 挂 templateCode | ✓ |
 | 分类模板不进 RDF | 分类模板是原型，类是独立资源（PRD 5.1/5.2） | ModelClass 与 ClassTemplate 分表，class_iri 独立 | ✓ |
 | 类层级权威源在建模域 | 建模侧建立 subClassOf 是权威源（PRD 5.2） | 本 DD 不建 subClassOf（DD9），父类子类列表预留空 | ✓（预留） |
-| 治理域只读消费 | 不修改治理域表/接口/代码（PRD NFR-C3/R-23） | 只调 Supply API GET，不写治理域表，不注入治理域 Service | ✓ |
+| 治理域只读消费 | 不修改治理域表/接口/代码（PRD NFR-C3/R-23） | 方案 B：同模块只读 Service 注入（getByCode/inheritedView/list），不写治理域表，符合 R-23 "同模块内只读查询"豁免 | ✓ |
 | 属性表归属 | PRD 9.4/9.5 原划 DD9/V14 | 前移到 V13（因实例化需同时建类+属性），DD9 不建表只做业务逻辑 | ✓（调整，已说明） |
 | 菜单 ID | 11200 段（PRD 13.1） | 11200 菜单 + 11201~11204 按钮 | ✓ |
 | 权限标识 | ont_class_model_view / ont_class_model_manage（PRD 13.2） | Controller @HasPermission 对齐 | ✓ |
