@@ -12,6 +12,9 @@
 		"prettier": "prettier --write ."
 	},
 	"dependencies": {
+		"@antv/layout": "^2.0.0",
+		"@antv/x6": "^3.1.7",
+		"@antv/x6-vue-shape": "^3.0.2",
 		"@axolo/json-editor-vue": "0.3.2",
 		"@element-plus/icons-vue": "2.3.2",
 		"@microsoft/clarity": "1.0.2",
@@ -56,10 +59,10 @@
 		"autoprefixer": "10.4.27",
 		"cross-env": "7.0.3",
 		"daisyui": "3.9.4",
+		"esbuild": "0.28.1",
 		"eslint": "8.34.0",
 		"eslint-plugin-vue": "9.9.0",
 		"pinia-plugin-persist": "1.0.0",
-		"esbuild": "0.28.1",
 		"postcss": "8.4.49",
 		"prettier": "2.8.8",
 		"sass": "1.94.3",
