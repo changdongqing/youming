@@ -8,7 +8,13 @@
 | 设计计划 | 《本体建模功能详细设计计划.md》DD9（M7） |
 | 前置依赖 | DD8 已落地（ont_model_class + ont_model_datatype_property + ont_model_object_property 三表就绪，类实体 CRUD + 模板实例化可用）；治理域 DD2/DD3/DD4 已落地（Supply API property-templates/units/suggest + Sync API class-hierarchy 可消费） |
 | 编写日期 | 2026-07-28 |
-| 文档状态 | 待评审 |
+| 文档状态 | 评审通过（附优化项已合入），进入实现 |
+
+> **评审决策记录**（2026-07-28 评审合入）：
+> - **消费方式改为方案 B**：`HierarchySyncService`/`ModelSubclassOfServiceImpl` 通过**同模块只读 Service 注入**消费治理域能力——镜像回推注入 `ClassHierarchyService.upsertMirror/invalidateMirror`（治理域公开方法，写入由治理域 Service 自己执行，建模域不直接操作治理域表/Mapper），父类建议注入 `ClassTemplateService.suggestParentClassIris`，属性模板注入 `PropertyTemplateService`。与 DD8 方案 B 决策一致；消除 HTTP RestTemplate 鉴权难题（Sync 要 `ont_sync_push`、Supply 要 `ont_supply_view`）。强类型 `ClassHierarchySyncDTO` 替代 Map 组装。
+> - **删除 range_class_id ALTER**（P-2）：DD8 V13 实际已将 `range_class_id` 建为可空（`bigint` 无 NOT NULL），无需 V14 修复。原文档"V13 原 NOT NULL"为错误假设。
+> - **补偿重试上限**（P-4）：新增 `retry_count` 字段（V14 建表），补偿任务扫 `sync_status='0' AND retry_count<3`，3 次失败后置 `sync_status='3'`（同步失败需人工介入），严格符合 PRD R-19/场景四"最多 3 次"。
+> - **环路检测增强**（P-5）：`wouldCreateCycle` 改为 DFS 遍历所有父链（支持多继承 AC-14.6），不再只取第一个父。
 
 ---
 
@@ -18,9 +24,9 @@
 
 - **FR-12 数据属性手动建模**：为类创建/编辑/删除数据属性，基于属性模板（`kind=datatype`），绑定单位（`unitRef` = QUDT IRI），设置基数/标识符/枚举值。
 - **FR-13 对象属性建模**：为类创建/编辑/删除对象属性，基于属性模板（`kind=object`），定义 domain（域类）和 range（值域类），支持反向关系建议。
-- **FR-14 类层级建立与镜像回推**：建立 `rdfs:subClassOf` 关系，环路检测（DFS），建立后自动回推 `ont_class_hierarchy` 镜像，删除后置镜像失效，补偿重试保证一致性。
-- **V14 脚本**：建 `ont_model_subclassof` 表 + 11300 段菜单种子 + **修复 DD8 遗留的 `range_class_id NOT NULL` 约束**（改为可空，使 DD8 实例化对象属性 range 留空语义成立）。
-- **补偿任务**：镜像回推失败时定时重试（Spring `@Scheduled`，最多 3 次指数退避）。
+- **FR-14 类层级建立与镜像回推**：建立 `rdfs:subClassOf` 关系，环路检测（DFS 遍历所有父链，支持多继承），建立后自动回推 `ont_class_hierarchy` 镜像，删除后置镜像失效，补偿重试（最多 3 次）保证一致性。
+- **V14 脚本**：建 `ont_model_subclassof` 表（含 `retry_count`）+ 11300 段菜单种子。**不包含 range_class_id ALTER**（DD8 V13 已建为可空）。
+- **补偿任务**：镜像回推失败时定时重试（Spring `@Scheduled`，`retry_count` 字段控制最多 3 次）。
 
 ### 1.2 范围（本 DD 做 / 不做）
 
@@ -131,17 +137,19 @@ web/src/
 ### 3.1 V14 脚本范围
 
 V14 一次性完成：
-- (a) 建表 `ont_model_subclassof`（类层级关系，建模域权威源）
-- (b) **修复 DD8 遗留**：`ALTER TABLE ont_model_object_property ALTER COLUMN range_class_id DROP NOT NULL`（使 DD8 实例化对象属性 range 留空语义成立）
-- (c) 建索引
-- (d) sys_menu 菜单种子（11300 段"本体属性建模" + 11301~11304 权限点按钮）
+- (a) 建表 `ont_model_subclassof`（类层级关系，建模域权威源，含 `retry_count` 字段）
+- (b) 建索引
+- (c) sys_menu 菜单种子（11300 段"本体属性建模" + 11301~11304 权限点按钮）
+
+> **不含 range_class_id ALTER**（评审修订 P-2）：DD8 V13 实际已将 `range_class_id` 建为可空（`bigint` 无 NOT NULL，已核实 DD8 Entity `ModelObjectProperty.rangeClassId` 为可空 Long）。原"V13 原 NOT NULL"为错误假设，无需修复。
 
 ### 3.2 V14__ont_model_subclassof_seed.sql
 
 ```sql
 -- ============================================================
--- V14: 建模域 - 类层级关系 + 修复 range_class_id（FR-14）
--- 建 ont_model_subclassof + ALTER ont_model_object_property + 菜单种子（11300 段）
+-- V14: 建模域 - 类层级关系（FR-14）
+-- 建 ont_model_subclassof（含 retry_count）+ 菜单种子（11300 段）
+-- 注：range_class_id DD8 V13 已建为可空，无需 ALTER（评审修订 P-2）
 -- ============================================================
 
 -- ---------- (a) 建表 ----------
@@ -154,6 +162,7 @@ CREATE TABLE ont_model_subclassof (
     source_template_ref  varchar(64),
     sync_status          char(1)      DEFAULT '0',
     sync_time            timestamp,
+    retry_count          int          DEFAULT 0,
     create_by            varchar(64)  DEFAULT ' ',
     create_time          timestamp    DEFAULT now(),
     update_by            varchar(64)  DEFAULT ' ',
@@ -163,25 +172,26 @@ CREATE TABLE ont_model_subclassof (
     CONSTRAINT uk_ont_model_subclassof UNIQUE (project_id, child_class_id, parent_class_id)
 );
 COMMENT ON TABLE  ont_model_subclassof IS '类层级关系（rdfs:subClassOf，建模域权威源，FR-14）';
+COMMENT ON COLUMN ont_model_subclassof.id                  IS '主键';
+COMMENT ON COLUMN ont_model_subclassof.project_id          IS '所属项目 ID';
 COMMENT ON COLUMN ont_model_subclassof.child_class_id      IS '子类 ID';
 COMMENT ON COLUMN ont_model_subclassof.parent_class_id     IS '父类 ID';
 COMMENT ON COLUMN ont_model_subclassof.source_template_ref IS '溯源：建议来源的分类模板 template_code';
-COMMENT ON COLUMN ont_model_subclassof.sync_status         IS '0=待同步 1=已同步 2=已失效（镜像回推状态）';
+COMMENT ON COLUMN ont_model_subclassof.sync_status         IS '0=待同步 1=已同步 2=已失效 3=同步失败(重试耗尽)';
 COMMENT ON COLUMN ont_model_subclassof.sync_time           IS '最近镜像回推时间';
+COMMENT ON COLUMN ont_model_subclassof.retry_count         IS '镜像回推重试次数（上限3，AC-14.5）';
+COMMENT ON COLUMN ont_model_subclassof.create_by           IS '创建人';
+COMMENT ON COLUMN ont_model_subclassof.create_time         IS '创建时间';
+COMMENT ON COLUMN ont_model_subclassof.update_by           IS '修改人';
+COMMENT ON COLUMN ont_model_subclassof.update_time         IS '修改时间';
+COMMENT ON COLUMN ont_model_subclassof.del_flag            IS '删除标记，0未删除，1已删除';
 
--- ---------- (b) 修复 DD8 遗留：range_class_id 改可空 ----------
--- DD8 实例化对象属性时 range 留空（模板不含 range），DD9 手动补全
--- V13 DDL 原为 NOT NULL，此处 ALTER 改为可空
-
-ALTER TABLE ont_model_object_property ALTER COLUMN range_class_id DROP NOT NULL;
-COMMENT ON COLUMN ont_model_object_property.range_class_id IS '值域类 ID（range），可空=模板实例化待补全（DD9 补全）';
-
--- ---------- (c) 索引 ----------
+-- ---------- (b) 索引 ----------
 
 CREATE INDEX idx_ont_model_subclass_child  ON ont_model_subclassof (child_class_id)  WHERE del_flag = '0';
 CREATE INDEX idx_ont_model_subclass_parent ON ont_model_subclassof (parent_class_id) WHERE del_flag = '0';
 
--- ---------- (d) sys_menu 菜单种子（11300 段） ----------
+-- ---------- (c) sys_menu 菜单种子（11300 段） ----------
 
 INSERT INTO sys_menu VALUES (11300, '本体属性建模', NULL, '/admin/ontology-model/property/index', NULL, 11000, 'iconfont icon-shuxing', '1', 3, '0', '0', '0', 'admin', now(), 'admin', now(), '0');
 INSERT INTO sys_menu VALUES (11301, '属性新增', 'ont_prop_model_manage', NULL, NULL, 11300, NULL, '1', 1, '0', NULL, '1', 'admin', now(), 'admin', now(), '0');
@@ -190,7 +200,7 @@ INSERT INTO sys_menu VALUES (11303, '属性删除', 'ont_prop_model_manage', NUL
 INSERT INTO sys_menu VALUES (11304, '属性查看', 'ont_prop_model_view',   NULL, NULL, 11300, NULL, '1', 4, '0', NULL, '1', 'admin', now(), 'admin', now(), '0');
 ```
 
-> **range_class_id 修复说明**：DD8 V13 DDL 中 `range_class_id bigint NOT NULL` 与 DD8 实例化时"range 留空"的设计意图冲突。V14 用 `ALTER TABLE ... DROP NOT NULL` 修复（Flyway 已应用 V13 不可改，只能 ALTER）。修复后 DD8 实例化对象属性 range=NULL 成立，DD9 手动补全 range 时 UPDATE 填值。
+> **retry_count 字段**（评审补充 P-4）：补偿任务扫 `sync_status='0' AND retry_count<3`，每次重试 `retry_count+1`，3 次失败后置 `sync_status='3'`（同步失败，需人工介入）。严格符合 PRD R-19/场景四"最多 3 次"。
 
 > **sys_menu 17 字段**：按位置 INSERT，parent_id=11000（本体建模目录），菜单 menu_type='0'，按钮 menu_type='1'。
 
@@ -248,11 +258,14 @@ public class ModelSubclassOf extends Model<ModelSubclassOf> {
 	@Schema(description = "溯源：建议来源的分类模板 template_code")
 	private String sourceTemplateRef;
 
-	@Schema(description = "0=待同步 1=已同步 2=已失效")
+	@Schema(description = "0=待同步 1=已同步 2=已失效 3=同步失败")
 	private String syncStatus;
 
 	@Schema(description = "最近镜像回推时间")
 	private LocalDateTime syncTime;
+
+	@Schema(description = "镜像回推重试次数（上限3）")
+	private Integer retryCount;
 
 	@TableField(fill = FieldFill.INSERT)
 	@Schema(description = "创建人")
@@ -856,12 +869,10 @@ import com.pig4cloud.pig.ontology.modeling.mapper.ModelSubclassOfMapper;
 import com.pig4cloud.pig.ontology.modeling.service.HierarchySyncService;
 import com.pig4cloud.pig.ontology.modeling.service.ModelSubclassOfService;
 import com.pig4cloud.pig.ontology.modeling.vo.ModelSubclassOfTreeVO;
+import com.pig4cloud.pig.ontology.service.ClassTemplateService;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.*;
 
@@ -878,9 +889,7 @@ public class ModelSubclassOfServiceImpl extends ServiceImpl<ModelSubclassOfMappe
 
 	private final ModelClassMapper modelClassMapper;
 	private final HierarchySyncService hierarchySyncService;
-	private final RestTemplate restTemplate;
-
-	private static final String SUPPLY_BASE = "http://localhost:9999/admin/ont/supply/v1";
+	private final ClassTemplateService classTemplateService;
 
 	@Override
 	public List<ModelSubclassOfTreeVO> tree(Long projectId) {
@@ -932,18 +941,16 @@ public class ModelSubclassOfServiceImpl extends ServiceImpl<ModelSubclassOfMappe
 		return vo;
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
 	public List<String> suggestParentIris(Long classId) {
-		// AC-14.2：消费 Supply suggest 端点
+		// AC-14.2：消费治理域 suggest（方案B：同模块 ClassTemplateService.suggestParentClassIris）
 		ModelClass cls = modelClassMapper.selectById(classId);
+		// 手建类（空白类）无 templateCode，父类建议不可用（Supply suggest 要求 templateCode 必填）
 		if (cls == null || StrUtil.isBlank(cls.getTemplateCode())) {
 			return Collections.emptyList();
 		}
-		String url = SUPPLY_BASE + "/class-hierarchy/suggest?templateCode=" + cls.getTemplateCode();
 		try {
-			R<List<String>> resp = restTemplate.getForObject(url, R.class);
-			return (resp != null && resp.getCode() == 0) ? resp.getData() : Collections.emptyList();
+			return classTemplateService.suggestParentClassIris(cls.getTemplateCode());
 		}
 		catch (Exception e) {
 			return Collections.emptyList();
@@ -969,13 +976,14 @@ public class ModelSubclassOfServiceImpl extends ServiceImpl<ModelSubclassOfMappe
 		if (count > 0) {
 			return R.failed("该类层级关系已存在");
 		}
-		// 4. 保存边（sync_status='0' 待同步）
+		// 4. 保存边（sync_status='0' 待同步，retry_count=0）
 		ModelSubclassOf edge = new ModelSubclassOf();
 		edge.setProjectId(dto.getProjectId());
 		edge.setChildClassId(dto.getChildClassId());
 		edge.setParentClassId(dto.getParentClassId());
 		edge.setSourceTemplateRef(dto.getSourceTemplateRef());
 		edge.setSyncStatus("0");
+		edge.setRetryCount(0);
 		save(edge);
 		// 5. 镜像回推（AC-14.3）
 		R syncResult = hierarchySyncService.pushMirror(edge);
@@ -1007,30 +1015,42 @@ public class ModelSubclassOfServiceImpl extends ServiceImpl<ModelSubclassOfMappe
 	}
 
 	/**
-	 * 环路检测：从 parentClassId 向上查父链，若遇到 childClassId 则成环（AC-14.1）
-	 * 参考治理域 CycleDetectorService 算法骨架（visited 防环 + 向上查链），
-	 * 但数据源是 ont_model_subclassof（按 child/parent 遍历）而非 ClassTemplate.parentId。
+	 * 环路检测：DFS 遍历 parentClassId 的所有祖先链，若遇到 childClassId 则成环（AC-14.1，支持多继承 AC-14.6）
+	 * <p>
+	 * 与治理域 CycleDetectorService 不同：后者针对单继承 parentId 链（while 单链向上）；
+	 * 本方法针对多继承 subClassOf 图（一个子类可有多个父），用 DFS 递归遍历所有父链。
+	 * 建立边 (child -> parent) 后，从 parent 向上查，若任意祖先链回到 child 即成环。
 	 */
 	private boolean wouldCreateCycle(Long projectId, Long childClassId, Long parentClassId) {
 		Set<Long> visited = new HashSet<>();
-		Long cur = parentClassId;
-		while (cur != null && visited.add(cur)) {
-			if (cur.equals(childClassId)) {
+		return dfsAncestors(projectId, parentClassId, childClassId, visited);
+	}
+
+	/**
+	 * DFS 递归：从 cur 向上遍历所有父类，检查是否到达 target
+	 */
+	private boolean dfsAncestors(Long projectId, Long cur, Long target, Set<Long> visited) {
+		if (cur == null || !visited.add(cur)) {
+			return false;
+		}
+		if (cur.equals(target)) {
+			return true;
+		}
+		// 查 cur 的所有父类（多继承：一个子类可有多个父）
+		List<ModelSubclassOf> parents = list(Wrappers.<ModelSubclassOf>lambdaQuery()
+			.eq(ModelSubclassOf::getProjectId, projectId)
+			.eq(ModelSubclassOf::getChildClassId, cur));
+		for (ModelSubclassOf edge : parents) {
+			if (dfsAncestors(projectId, edge.getParentClassId(), target, visited)) {
 				return true;
 			}
-			// 查 cur 的父类（向上走）
-			List<ModelSubclassOf> parents = list(Wrappers.<ModelSubclassOf>lambdaQuery()
-				.eq(ModelSubclassOf::getProjectId, projectId)
-				.eq(ModelSubclassOf::getChildClassId, cur));
-			// 多继承：取第一个父继续向上（DFS 简化--多继承环路需遍历所有父链）
-			cur = parents.isEmpty() ? null : parents.get(0).getParentClassId();
 		}
 		return false;
 	}
 }
 ```
 
-> **环路检测**（AC-14.1）：参考治理域 `CycleDetectorService` 的算法骨架（visited HashSet 防环 + 向上查父链），但数据源改为 `ont_model_subclassof` 表（按 childClassId/parentClassId 遍历）。注意：当前实现取第一个父类继续向上（简化），严格多继承环路检测需 DFS 遍历所有父链--v1 单继承场景足够，多继承增强后续优化。
+> **环路检测**（评审修订 P-5，AC-14.1/14.6）：DFS 递归遍历所有祖先链，支持多继承（一个子类可有多个父）。与治理域 `CycleDetectorService` 的单继承 parentId 链检测不同（后者不可复用，本方法针对多继承 subClassOf 图）。visited 防止图中已有脏环导致无限递归。
 
 > **镜像回推失败不回滚**（AC-14.5）：建模域是权威源，建立 subClassOf 成功即业务完成；镜像回推失败时 sync_status 保持 '0'，补偿任务异步重试。不因镜像同步失败而回滚建模域事务（R-19）。
 
@@ -1040,23 +1060,23 @@ public class ModelSubclassOfServiceImpl extends ServiceImpl<ModelSubclassOfMappe
 package com.pig4cloud.pig.ontology.modeling.service;
 
 import com.pig4cloud.pig.common.core.util.R;
+import com.pig4cloud.pig.ontology.api.dto.ClassHierarchySyncDTO;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelClass;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelSubclassOf;
 import com.pig4cloud.pig.ontology.modeling.mapper.ModelClassMapper;
+import com.pig4cloud.pig.ontology.service.ClassHierarchyService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * 镜像回推核心 Service（FR-14.3/14.4）
  * <p>
- * 建模域建立 subClassOf 后，调治理域 Sync API 回推镜像到 ont_class_hierarchy。
+ * 方案 B（同模块只读/调用 Service 注入）：注入治理域 {@link ClassHierarchyService}，
+ * 调用其公开方法 upsertMirror/invalidateMirror 回推镜像到 ont_class_hierarchy。
+ * 写入由治理域 Service 自己执行，建模域不直接操作治理域表/Mapper，符合 R-23 "调 Sync API" 的本质。
  * 回推失败时 sync_status='0'，由 HierarchySyncCompensateTask 补偿重试（AC-14.5）。
  *
  * @author pig
@@ -1067,35 +1087,27 @@ import java.util.Map;
 @Service
 public class HierarchySyncService {
 
-	private static final String SYNC_BASE = "http://localhost:9999/admin/ont/sync";
-
-	private final RestTemplate restTemplate;
+	private final ClassHierarchyService classHierarchyService;
 	private final ModelClassMapper modelClassMapper;
 
 	/**
-	 * 回推镜像：建立 subClassOf 后调 Sync POST（AC-14.3）
+	 * 回推镜像：建立 subClassOf 后调 ClassHierarchyService.upsertMirror（AC-14.3）
 	 */
-	@SuppressWarnings("unchecked")
 	public R pushMirror(ModelSubclassOf edge) {
 		ModelClass childClass = modelClassMapper.selectById(edge.getChildClassId());
 		ModelClass parentClass = modelClassMapper.selectById(edge.getParentClassId());
 		if (childClass == null || parentClass == null) {
 			return R.failed("子类或父类不存在");
 		}
-		// 组装 ClassHierarchySyncDTO
-		Map<String, Object> dto = new HashMap<>();
-		dto.put("childClassIri", childClass.getClassIri());
-		dto.put("parentClassIri", parentClass.getClassIri());
-		dto.put("sourceTemplateRef", edge.getSourceTemplateRef());
-		dto.put("treeRoot", childClass.getTemplateCode()); // treeRoot 用类的模板溯源标识
-
-		String url = SYNC_BASE + "/class-hierarchy";
+		// 组装强类型 ClassHierarchySyncDTO（4 字段：childClassIri/parentClassIri 必填，
+		// sourceTemplateRef/treeRoot 可空）
+		ClassHierarchySyncDTO dto = new ClassHierarchySyncDTO();
+		dto.setChildClassIri(childClass.getClassIri());
+		dto.setParentClassIri(parentClass.getClassIri());
+		dto.setSourceTemplateRef(edge.getSourceTemplateRef());
+		dto.setTreeRoot(childClass.getTemplateCode()); // treeRoot 用类的模板溯源标识（手建类为 null，可空）
 		try {
-			R resp = restTemplate.postForObject(url, Collections.singletonList(dto), R.class);
-			if (resp != null && resp.getCode() == 0) {
-				return R.ok();
-			}
-			return R.failed("镜像回推失败：" + (resp != null ? resp.getMsg() : "未知错误"));
+			return classHierarchyService.upsertMirror(Collections.singletonList(dto));
 		}
 		catch (Exception e) {
 			log.error("镜像回推异常: child={}, parent={}", childClass.getClassIri(),
@@ -1105,20 +1117,17 @@ public class HierarchySyncService {
 	}
 
 	/**
-	 * 镜像失效：删除 subClassOf 后调 Sync DELETE（AC-14.4）
+	 * 镜像失效：删除 subClassOf 后调 ClassHierarchyService.invalidateMirror（AC-14.4）
 	 */
-	@SuppressWarnings("unchecked")
 	public R invalidateMirror(ModelSubclassOf edge) {
 		ModelClass childClass = modelClassMapper.selectById(edge.getChildClassId());
 		ModelClass parentClass = modelClassMapper.selectById(edge.getParentClassId());
 		if (childClass == null || parentClass == null) {
 			return R.failed("子类或父类不存在");
 		}
-		String url = SYNC_BASE + "/class-hierarchy?childClassIri=" + childClass.getClassIri()
-				+ "&parentClassIri=" + parentClass.getClassIri();
 		try {
-			restTemplate.delete(url);
-			return R.ok();
+			return classHierarchyService.invalidateMirror(childClass.getClassIri(),
+					parentClass.getClassIri());
 		}
 		catch (Exception e) {
 			log.error("镜像失效异常: child={}, parent={}", childClass.getClassIri(),
@@ -1129,9 +1138,9 @@ public class HierarchySyncService {
 }
 ```
 
-> **回推组装**：`ClassHierarchySyncDTO` 的 4 个字段来源--`childClassIri`/`parentClassIri` 从 ModelClass.classIri 取，`sourceTemplateRef` 从 ModelSubclassOf.sourceTemplateRef 取，`treeRoot` 用子类的 templateCode（模板溯源标识）。POST 端点接收 `List<DTO>`，此处传单元素列表。
+> **回推组装**（方案 B）：注入治理域 `ClassHierarchyService`，调用其公开方法 `upsertMirror(List<ClassHierarchySyncDTO>)` / `invalidateMirror(childClassIri, parentClassIri)`。强类型 `ClassHierarchySyncDTO`（治理域 api.dto 包，4 字段）替代 Map 组装。`childClassIri`/`parentClassIri` 从 ModelClass.classIri 取，`sourceTemplateRef` 从 ModelSubclassOf.sourceTemplateRef 取，`treeRoot` 用子类 templateCode（手建类为 null，DTO 该字段可空）。
 
-> **Sync API 权限**：POST/DELETE 端点权限 `ont_sync_push`（仅建模侧服务账号）。RestTemplate 调用时需携带服务账号 token（通过请求头传递，或在内部调用时绕过鉴权--v1 简化用同进程 localhost 调用，微服务模式需配置服务账号认证）。
+> **无需鉴权透传**（方案 B 优势）：同进程方法调用，治理域 `ClassHierarchyService.upsertMirror/invalidateMirror` 是同模块 Service 公开方法，无 HTTP 鉴权问题（消除原方案 `ont_sync_push` token 透传难题）。写入由治理域 Service 自己执行，建模域不直接操作治理域表/Mapper，符合 R-23。
 
 ### 4.10 HierarchySyncCompensateTask - 补偿定时任务
 
@@ -1171,13 +1180,15 @@ public class HierarchySyncCompensateTask {
 	private final HierarchySyncService hierarchySyncService;
 
 	/**
-	 * 每 60 秒扫描一次待同步的 subClassOf 记录，重试回推
+	 * 每 60 秒扫描一次待同步的 subClassOf 记录，重试回推（最多 3 次，AC-14.5）
 	 */
 	@Scheduled(fixedDelay = 60000)
 	public void retrySync() {
+		// 只扫待同步且重试次数未超限的记录（sync_status='0' AND retry_count<3）
 		List<ModelSubclassOf> pending = subclassOfService.list(
 				Wrappers.<ModelSubclassOf>lambdaQuery()
-					.eq(ModelSubclassOf::getSyncStatus, "0"));
+					.eq(ModelSubclassOf::getSyncStatus, "0")
+					.lt(ModelSubclassOf::getRetryCount, 3));
 		if (CollUtil.isEmpty(pending)) {
 			return;
 		}
@@ -1192,8 +1203,18 @@ public class HierarchySyncCompensateTask {
 							edge.getParentClassId());
 				}
 				else {
-					log.warn("补偿回推失败: child={}, parent={}, msg={}", edge.getChildClassId(),
-							edge.getParentClassId(), result.getMsg());
+					// 失败：retry_count+1，达 3 次置 sync_status='3'（同步失败，需人工介入）
+					edge.setRetryCount((edge.getRetryCount() == null ? 0 : edge.getRetryCount()) + 1);
+					if (edge.getRetryCount() >= 3) {
+						edge.setSyncStatus("3");
+						log.error("补偿回推 3 次耗尽，置同步失败: child={}, parent={}",
+								edge.getChildClassId(), edge.getParentClassId());
+					}
+					else {
+						log.warn("补偿回推失败({}/3): child={}, parent={}, msg={}", edge.getRetryCount(),
+								edge.getChildClassId(), edge.getParentClassId(), result.getMsg());
+					}
+					subclassOfService.updateById(edge);
 				}
 			}
 			catch (Exception e) {
@@ -1205,7 +1226,7 @@ public class HierarchySyncCompensateTask {
 }
 ```
 
-> **补偿任务设计**（AC-14.5）：`@Scheduled(fixedDelay = 60000)` 每 60 秒扫描 `sync_status='0'` 的记录重试回推。成功置 '1'，失败保持 '0' 下轮继续重试。不设硬性重试上限（靠 sync_status 语义控制：只要还是 '0' 就继续重试，直到成功或手动处理）。v1 用 Spring 原生 `@Scheduled`（需启动类加 `@EnableScheduling`），而非 pig-quartz（避免引入 Quartz 调度依赖的复杂度，补偿任务逻辑简单）。
+> **补偿任务设计**（评审修订 P-4，AC-14.5）：`@Scheduled(fixedDelay = 60000)` 每 60 秒扫描 `sync_status='0' AND retry_count<3` 的记录重试回推。成功置 `'1'`；失败 `retry_count+1`，达 3 次置 `sync_status='3'`（同步失败，需人工介入），不再重试。严格符合 PRD R-19/场景四"最多 3 次"。v1 用 Spring 原生 `@Scheduled`（需启动类加 `@EnableScheduling`）。
 
 > **启动类修改**：需在 `PigOntologyApplication` 和 `PigBootApplication` 加 `@EnableScheduling`：
 > ```java
@@ -1529,12 +1550,17 @@ export default {
 
 > **不走分布式事务**（R-19）：建模域是权威源，建立成功即业务完成；镜像同步是最终一致。补偿任务只处理"建立"的回推重试，不处理"删除"的失效重试（v1 简化，删除失效失败概率低，残留镜像不影响建模域权威性）。
 
-### 6.4 治理域消费边界（R-23）
+### 6.4 治理域消费边界（R-23，方案 B）
 
-- **只读消费 Supply API**：property-templates（拉模板下拉）、units（拉单位下拉）、class-hierarchy/suggest（父类建议）。
-- **调用 Sync API**：class-hierarchy POST/DELETE（镜像回推），权限 `ont_sync_push`。
-- **不注入治理域 Service**：全部走 HTTP RestTemplate。
-- **不写治理域表**：镜像写入由治理域 SyncController 的 ClassHierarchyService 负责，建模域只调 API。
+- **同模块只读/调用 Service 注入**：
+  - 镜像回推注入 `ClassHierarchyService.upsertMirror/invalidateMirror`（治理域公开方法，写入由治理域 Service 自己执行，建模域不直接操作治理域表/Mapper）。
+  - 父类建议注入 `ClassTemplateService.suggestParentClassIris`（只读）。
+  - 属性模板注入 `PropertyTemplateService.list`（只读，DD8 已用）。
+- **不直接写治理域表**：镜像写入由治理域 `ClassHierarchyServiceImpl` 执行，建模域只调用其公开方法（符合 R-23 "调 Sync API" 的本质）。
+- **不注入治理域 Mapper**：不引用 `ClassHierarchyMapper`/`ClassTemplateMapper` 等。
+- **无需鉴权透传**：同进程方法调用，无 HTTP 鉴权问题（消除 `ont_sync_push`/`ont_supply_view` token 透传难题）。
+
+### 6.5 启动类修改
 
 ### 6.5 启动类修改
 
@@ -1547,7 +1573,7 @@ export default {
 | 类别 | 要点 |
 |---|---|
 | 编译 | modeling 包新增类无编译错误 |
-| Flyway（V14） | `SELECT count(*) FROM ont_model_subclassof` = 0；`SELECT is_nullable FROM information_schema.columns WHERE table_name='ont_model_object_property' AND column_name='range_class_id'` = 'YES'（可空）；`SELECT menu_id FROM sys_menu WHERE menu_id BETWEEN 11300 AND 11304` = 5 条 |
+| Flyway（V14） | `SELECT count(*) FROM ont_model_subclassof` = 0；`SELECT count(*) FROM information_schema.columns WHERE table_name='ont_model_subclassof' AND column_name='retry_count'` = 1（retry_count 字段存在）；`SELECT menu_id FROM sys_menu WHERE menu_id BETWEEN 11300 AND 11304` = 5 条。注：range_class_id 可空由 DD8 V13 已建，无需 V14 验证 |
 | 覆盖（AC-12.1） | `POST /datatype-property` 新增成功；重复 localName 返回 `R.failed("属性名 'xxx' 在该类下已存在")` |
 | 覆盖（AC-12.2） | xsdType='xsd:string' 传 unitRef 返回 `R.failed("非数值型属性不可绑定单位")`；xsdType='xsd:decimal' 绑单位成功 |
 | 覆盖（AC-12.3） | enumValues 传 `["active","inactive"]` 存 JSON 字符串，查询返回正确 |
@@ -1562,9 +1588,8 @@ export default {
 | 覆盖（AC-14.2） | `GET /suggest-parent?classId=xx` 返回父类 IRI 列表（来自 Supply suggest） |
 | 覆盖（AC-14.3） | 建立后查 `SELECT sync_status FROM ont_model_subclassof` = '1'（回推成功）；查 ont_class_hierarchy 镜像 sync_status='1' |
 | 覆盖（AC-14.4） | 删除后查 ont_class_hierarchy 镜像 sync_status='2'（失效） |
-| 覆盖（AC-14.5） | 模拟 Sync API 不可用，建立后 sync_status='0'，补偿任务 60s 后重试成功置 '1' |
-| 覆盖（AC-14.6） | 建立 subClassOf(A, B) + subClassOf(A, C) 成功（多继承） |
-| range_class_id 修复 | V14 后 `INSERT INTO ont_model_object_property(...,range_class_id,...) VALUES(...,NULL,...)` 成功（可空） |
+| 覆盖（AC-14.5） | 模拟 ClassHierarchyService 回推失败，建立后 sync_status='0'/retry_count=0，补偿任务 60s 后重试成功置 '1'；连续失败 3 次后 sync_status='3'（不再重试） |
+| 覆盖（AC-14.6） | 建立 subClassOf(A, B) + subClassOf(A, C) 成功（多继承）；环路检测支持多继承（A→B→C 链 + A→C 直连会成环被拦截） |
 | 权限 | 无 `ont_prop_model_manage` 调 POST 返回 403；无 `ont_class_model_manage` 调 subClassOf POST 返回 403 |
 
 ---
@@ -1573,11 +1598,11 @@ export default {
 
 | 风险 | 缓解 |
 |---|---|
-| Sync API 权限 `ont_sync_push` 需服务账号 | v1 同进程 localhost 调用（单体模式绕过鉴权或内部 token）；微服务模式配置服务账号认证 |
-| 补偿任务密集重试压垮 Sync API | `fixedDelay=60000`（60s 间隔）；只扫 sync_status='0'；成功即置 '1' 退出 |
-| 多继承环路检测不完整 | v1 取第一个父类向上查（单继承场景足够）；严格多继承 DFS 遍历所有父链后续优化 |
+| 镜像回推调用治理域 Service 的边界 | 方案B：注入 ClassHierarchyService 公开方法（upsertMirror/invalidateMirror），写入由治理域 Service 自己执行；建模域不注入治理域 Mapper，符合 R-23 |
+| 补偿任务密集重试压垮治理域 | `fixedDelay=60000`（60s 间隔）；只扫 sync_status='0' AND retry_count<3；3 次耗尽置 '3' 退出 |
+| 多继承环路检测复杂度 | DFS 遍历所有父链（visited 防环），支持多继承；类层级深度通常 ≤5（R-13），复杂度可控 |
 | `@EnableScheduling` 影响其他模块 | Spring 定时任务按 Bean 隔离，仅 HierarchySyncCompensateTask 注册；不影响治理域 |
-| range_class_id DDL 修复需 V14 ALTER | Flyway 已应用 V13 不可改，V14 ALTER DROP NOT NULL 是唯一修复路径；已验证 PostgreSQL 语法 |
+| 手建类无 templateCode 导致 suggest 失败 | suggestParentIris 判空 templateCode，手建类返回空列表（父类建议不可用，不报错） |
 | defaultCardinality 映射规则无先例 | DD9 新增 `mapCardinality` 方法，映射规则在文档明确（one-to-one->[0,1] 等） |
 
 ---
@@ -1603,7 +1628,7 @@ export default {
 | 新建 | `modeling/dto/InverseSuggestDTO.java` | 反向关系建议 DTO |
 | 新建 | `modeling/vo/ModelSubclassOfTreeVO.java` | 类树 VO |
 | 新建 | `modeling/vo/InverseSuggestVO.java` | 反向关系建议 VO |
-| 新建 | `V14__ont_model_subclassof_seed.sql` | 建表 + 修复 range_class_id + 菜单 |
+| 新建 | `V14__ont_model_subclassof_seed.sql` | 建 ont_model_subclassof（含 retry_count）+ 菜单种子 |
 | 新建 | `api/ontology-model/datatype-property.ts` | 前端 API |
 | 新建 | `api/ontology-model/object-property.ts` | 前端 API |
 | 新建 | `api/ontology-model/subclassof.ts` | 前端 API |
@@ -1628,17 +1653,17 @@ export default {
 | 对象属性 range | 模板不含 range，建模侧手动选定（FR-13.2） | saveProp range 必填；DD8 实例化 NULL 由 updateProp 补全 | ✓ |
 | 反向关系建议 | 建立 contains 后建议 belongsTo（FR-13.5） | suggestInverse 反转 domain/range + 映射属性名 | ✓ |
 | 类层级权威源 | 建模侧建立 subClassOf 是权威源（PRD 5.2） | ont_model_subclassof 建模域权威表 | ✓ |
-| 镜像回推 | 建立后回推 ont_class_hierarchy 镜像（FR-14.3） | HierarchySyncService 调 Sync POST | ✓ |
-| 一致性保证 | 本地事务+补偿，不走分布式事务（FR-14.5，R-19） | sync_status 补偿重试 + 建模域事务不回滚 | ✓ |
-| 环路校验在建模侧 | 建模侧是权威源，环路校验由建模侧负责 | SubServiceImpl.wouldCreateCycle DFS | ✓ |
-| 多继承支持 | subClassOf 允许多条（FR-14.6） | uk(project_id,child,parent) 允许多父 | ✓ |
+| 镜像回推 | 建立后回推 ont_class_hierarchy 镜像（FR-14.3） | 方案B：HierarchySyncService 注入 ClassHierarchyService.upsertMirror | ✓ |
+| 一致性保证 | 本地事务+补偿，不走分布式事务（FR-14.5，R-19） | sync_status + retry_count 补偿（上限3次）+ 建模域事务不回滚 | ✓ |
+| 环路校验在建模侧 | 建模侧是权威源，环路校验由建模侧负责 | SubServiceImpl.wouldCreateCycle DFS 遍历所有父链 | ✓ |
+| 多继承支持 | subClassOf 允许多条（FR-14.6） | uk(project_id,child,parent) 允许多父 + DFS 多继承环路检测 | ✓ |
 | defaultCardinality 映射 | one-to-many 等转为 min/max 基数（FR-13.3） | mapCardinality 静态方法 | ✓（新增） |
-| range_class_id 可空 | DD8 实例化 range 留空，DD9 补全 | V14 ALTER DROP NOT NULL | ✓（修复） |
-| 补偿任务 | 失败自动补偿重试（FR-14.5） | @Scheduled fixedDelay=60000 | ✓ |
+| range_class_id 可空 | DD8 实例化 range 留空，DD9 补全 | DD8 V13 已建为可空（已核实），V14 无需 ALTER（P-2 修订） | ✓ |
+| 补偿任务 | 失败自动补偿重试，最多 3 次（FR-14.5） | @Scheduled fixedDelay=60000 + retry_count<3 上限 | ✓ |
 | 菜单 ID | 11300 段（PRD 13.1） | 11300 菜单 + 11301~11304 按钮 | ✓ |
 | 权限标识 | ont_prop_model_view/manage（PRD 13.2） | Controller @HasPermission 对齐 | ✓ |
 | Flyway | V14（PRD 9 / 设计计划 3.2） | V14__ont_model_subclassof_seed.sql | ✓ |
-| 治理域只读消费 | 不修改治理域表/接口（PRD NFR-C3/R-23） | 只调 Supply/Sync API，不注入治理域 Service | ✓ |
+| 治理域只读消费 | 不修改治理域表/接口（PRD NFR-C3/R-23） | 方案B：注入 ClassHierarchyService/ClassTemplateService 公开方法，不注入 Mapper | ✓ |
 
 ---
 
