@@ -24,6 +24,8 @@ import com.pig4cloud.pig.common.swagger.annotation.EnableOpenApi;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 
 /**
  * 本体模板化治理功能启动类（微服务形态）。
@@ -37,6 +39,7 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 @EnableOpenApi("ontology")
 @EnablePigResourceServer
 @EnableDiscoveryClient
+@EnableScheduling
 @SpringBootApplication
 public class PigOntologyApplication {
 

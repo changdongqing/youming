@@ -11,9 +11,11 @@ import com.pig4cloud.pig.ontology.modeling.entity.ModelClass;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelDatatypeProperty;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelObjectProperty;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelProject;
+import com.pig4cloud.pig.ontology.modeling.entity.ModelSubclassOf;
 import com.pig4cloud.pig.ontology.modeling.mapper.ModelClassMapper;
 import com.pig4cloud.pig.ontology.modeling.mapper.ModelDatatypePropertyMapper;
 import com.pig4cloud.pig.ontology.modeling.mapper.ModelObjectPropertyMapper;
+import com.pig4cloud.pig.ontology.modeling.mapper.ModelSubclassOfMapper;
 import com.pig4cloud.pig.ontology.modeling.service.ClassInstantiationService;
 import com.pig4cloud.pig.ontology.modeling.service.ModelClassService;
 import com.pig4cloud.pig.ontology.modeling.service.ModelProjectService;
@@ -40,6 +42,7 @@ public class ModelClassServiceImpl extends ServiceImpl<ModelClassMapper, ModelCl
 	private final ModelDatatypePropertyMapper datatypePropertyMapper;
 	private final ModelObjectPropertyMapper objectPropertyMapper;
 	private final ModelProjectService modelProjectService;
+	private final ModelSubclassOfMapper subclassOfMapper;
 
 	@Override
 	public IPage<ModelClass> page(Page page, ModelClass cls) {
@@ -192,7 +195,14 @@ public class ModelClassServiceImpl extends ServiceImpl<ModelClassMapper, ModelCl
 		if (objCount > 0) {
 			return R.failed("类被 " + objCount + " 个对象属性引用，无法删除");
 		}
-		// 删除校验：是否被 subClassOf 引用（DD9 建表后启用，v1 跳过）
+		// 删除校验：是否被 subClassOf 引用（作为子类或父类，DD9 建表后启用，AC-11.6）
+		long subCount = subclassOfMapper.selectCount(Wrappers.<ModelSubclassOf>lambdaQuery()
+			.eq(ModelSubclassOf::getChildClassId, id)
+			.or()
+			.eq(ModelSubclassOf::getParentClassId, id));
+		if (subCount > 0) {
+			return R.failed("类被 " + subCount + " 个类层级关系引用，无法删除");
+		}
 		return R.ok(removeById(id));
 	}
 
