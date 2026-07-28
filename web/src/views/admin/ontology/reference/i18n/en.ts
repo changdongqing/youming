@@ -1,0 +1,22 @@
+export default {
+	reference: {
+		tabQudt: 'QUDT Units',
+		tabBrick: 'Brick Classes',
+		tabCco: 'CCO Annotation Properties',
+		iri: 'IRI',
+		label: 'Label',
+		symbol: 'Symbol',
+		quantityKind: 'Quantity Kind',
+		conversionMultiplier: 'Multiplier',
+		definition: 'Definition',
+		parentClass: 'Parent',
+		deprecated: 'Deprecated',
+		keyword: 'Keyword',
+		inputKeywordTip: 'Enter keyword',
+		importUnit: 'Import to Unit Registry',
+		importClass: 'Import as Class Template',
+		importSuccess: 'Import succeeded',
+		importUnitTip: 'Import this QUDT unit to the unit registry?',
+		importClassTip: 'Import this Brick class as a class template?',
+	},
+};

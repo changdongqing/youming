@@ -1,0 +1,22 @@
+export default {
+	reference: {
+		tabQudt: 'QUDT 单位',
+		tabBrick: 'Brick 类',
+		tabCco: 'CCO 注释属性',
+		iri: 'IRI',
+		label: '显示名',
+		symbol: '符号',
+		quantityKind: '量纲',
+		conversionMultiplier: '换算系数',
+		definition: '定义',
+		parentClass: '父类',
+		deprecated: '已弃用',
+		keyword: '关键字',
+		inputKeywordTip: '请输入关键字',
+		importUnit: '导入到单位注册表',
+		importClass: '导入为分类模板',
+		importSuccess: '导入成功',
+		importUnitTip: '确认导入该 QUDT 单位到单位注册表？',
+		importClassTip: '确认导入该 Brick 类为分类模板？',
+	},
+};
