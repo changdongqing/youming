@@ -8,11 +8,13 @@ import com.pig4cloud.pig.ontology.api.entity.AnnotationProperty;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelClass;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelDatatypeProperty;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelObjectProperty;
+import com.pig4cloud.pig.ontology.modeling.entity.ModelPrefix;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelProject;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelSubclassOf;
 import com.pig4cloud.pig.ontology.modeling.mapper.ModelClassMapper;
 import com.pig4cloud.pig.ontology.modeling.mapper.ModelDatatypePropertyMapper;
 import com.pig4cloud.pig.ontology.modeling.mapper.ModelObjectPropertyMapper;
+import com.pig4cloud.pig.ontology.modeling.mapper.ModelPrefixMapper;
 import com.pig4cloud.pig.ontology.modeling.mapper.ModelProjectMapper;
 import com.pig4cloud.pig.ontology.modeling.mapper.ModelSubclassOfMapper;
 import com.pig4cloud.pig.ontology.modeling.vo.SerializePreviewVO;
@@ -55,6 +57,9 @@ public class SerializationService {
 
 	private static final String ONT_NS = "http://youming.com/ontology/annotation#";
 
+	/** 保留前缀名，项目级前缀不得覆盖（BUG-002） */
+	private static final Set<String> RESERVED_PREFIXES = Set.of("rdf", "rdfs", "owl", "xsd", "ont");
+
 	/** 序列化缓存：key=projectId+format，TTL 5min，建模操作时失效 */
 	private final Cache<String, String> serializeCache = Caffeine.newBuilder()
 		.expireAfterWrite(5, TimeUnit.MINUTES)
@@ -66,6 +71,7 @@ public class SerializationService {
 	private final ModelObjectPropertyMapper objPropMapper;
 	private final ModelSubclassOfMapper subclassOfMapper;
 	private final ModelProjectMapper modelProjectMapper;
+	private final ModelPrefixMapper modelPrefixMapper;
 	private final AnnotationPropertyService annotationPropertyService;
 
 	/**
@@ -145,7 +151,25 @@ public class SerializationService {
 		// 查项目前缀
 		ModelProject project = modelProjectMapper.selectById(projectId);
 		String nsBase = project.getNamespaceBase();
-		model.setNsPrefix(extractPrefixName(nsBase, projectId), nsBase);
+
+		// 注册项目级前缀（BUG-002 修复：从 ont_model_prefix 表读取，替代硬编码 extractPrefixName）
+		List<ModelPrefix> prefixes = modelPrefixMapper.selectList(
+				Wrappers.<ModelPrefix>lambdaQuery().eq(ModelPrefix::getProjectId, projectId));
+		boolean projectPrefixRegistered = false;
+		for (ModelPrefix pf : prefixes) {
+			// 跳过与标准前缀冲突的保留前缀名（rdf/rdfs/owl/xsd/ont）
+			if (RESERVED_PREFIXES.contains(pf.getPrefix())) {
+				continue;
+			}
+			model.setNsPrefix(pf.getPrefix(), pf.getNamespace());
+			if ("1".equals(pf.getIsDefault())) {
+				projectPrefixRegistered = true;
+			}
+		}
+		// 若无默认前缀注册（表为空或默认前缀名与保留前缀冲突被跳过），回退用 nsBase 注册 ex 前缀
+		if (!projectPrefixRegistered) {
+			model.setNsPrefix("ex", nsBase);
+		}
 
 		// 查类 ID -> IRI 映射
 		List<ModelClass> classes = modelClassMapper.selectList(
@@ -179,7 +203,10 @@ public class SerializationService {
 		List<ModelDatatypeProperty> dtProps = dtPropMapper.selectList(
 				Wrappers.<ModelDatatypeProperty>lambdaQuery().eq(ModelDatatypeProperty::getProjectId, projectId));
 		for (ModelDatatypeProperty prop : dtProps) {
-			Resource propRes = model.createResource(prop.getPropertyIri(), OWL.DatatypeProperty);
+			// BUG-001 修复：property_iri 在手工创建/模板实例化路径存本地名（如 User_username），
+			// 需拼接 nsBase 生成完整 IRI；导入路径已存绝对 IRI（含 http），原样使用
+			String fullPropIri = resolveIri(prop.getPropertyIri(), nsBase);
+			Resource propRes = model.createResource(fullPropIri, OWL.DatatypeProperty);
 			String domainIri = classIriMap.get(prop.getClassId());
 			if (domainIri != null) {
 				propRes.addProperty(RDFS.domain, model.getResource(domainIri));
@@ -195,7 +222,9 @@ public class SerializationService {
 		List<ModelObjectProperty> objProps = objPropMapper.selectList(
 				Wrappers.<ModelObjectProperty>lambdaQuery().eq(ModelObjectProperty::getProjectId, projectId));
 		for (ModelObjectProperty prop : objProps) {
-			Resource propRes = model.createResource(prop.getPropertyIri(), OWL.ObjectProperty);
+			// BUG-001 修复：同数据属性，拼接 nsBase 生成完整 IRI
+			String fullPropIri = resolveIri(prop.getPropertyIri(), nsBase);
+			Resource propRes = model.createResource(fullPropIri, OWL.ObjectProperty);
 			String domainIri = classIriMap.get(prop.getDomainClassId());
 			String rangeIri = classIriMap.get(prop.getRangeClassId());
 			if (domainIri != null) {
@@ -298,8 +327,24 @@ public class SerializationService {
 		return minVal + ".." + (maxVal == -1 ? "n" : maxVal);
 	}
 
-	private String extractPrefixName(String nsBase, Long projectId) {
-		return "onto";
+	/**
+	 * 解析属性 IRI 为完整绝对 IRI（BUG-001 修复）
+	 * <p>
+	 * 手工创建/模板实例化路径存本地名（如 User_username），需拼接 nsBase；
+	 * 解析导入路径已存绝对 IRI（含 http/https 前缀），原样返回。
+	 *
+	 * @param propertyIri 数据库中存储的 property_iri 值
+	 * @param nsBase      项目命名空间基址
+	 * @return 完整绝对 IRI
+	 */
+	private String resolveIri(String propertyIri, String nsBase) {
+		if (propertyIri == null) {
+			return nsBase;
+		}
+		if (propertyIri.startsWith("http://") || propertyIri.startsWith("https://")) {
+			return propertyIri;
+		}
+		return nsBase + propertyIri;
 	}
 
 }

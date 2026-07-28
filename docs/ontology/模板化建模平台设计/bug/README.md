@@ -7,8 +7,8 @@
 
 | 编号 | 严重级别 | 标题 | 状态 | 发现日期 |
 |------|---------|------|------|---------|
-| [BUG-001](./BUG-001-属性property_iri序列化缺失namespace_base拼接.md) | 🔴 高 | 属性 property_iri 序列化时缺失 namespace_base 拼接 | 待修复 | 2026-07-29 |
-| [BUG-002](./BUG-002-extractPrefixName硬编码返回onto与前缀冲突.md) | 🟡 中 | extractPrefixName 硬编码返回 "onto"，与注释属性命名空间前缀冲突 | 待修复 | 2026-07-29 |
+| [BUG-001](./BUG-001-属性property_iri序列化缺失namespace_base拼接.md) | 🔴 高 | 属性 property_iri 序列化时缺失 namespace_base 拼接 | ✅ 已修复 | 2026-07-29 |
+| [BUG-002](./BUG-002-extractPrefixName硬编码返回onto与前缀冲突.md) | 🟡 中 | extractPrefixName 硬编码返回 "onto"，与注释属性命名空间前缀冲突 | ✅ 已修复 | 2026-07-29 |
 
 ## 发现背景
 
