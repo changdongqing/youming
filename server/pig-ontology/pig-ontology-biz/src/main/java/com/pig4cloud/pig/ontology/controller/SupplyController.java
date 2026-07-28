@@ -25,11 +25,13 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.pig4cloud.pig.common.core.util.R;
 import com.pig4cloud.pig.common.security.annotation.HasPermission;
 import com.pig4cloud.pig.ontology.api.entity.PropertyTemplate;
+import com.pig4cloud.pig.ontology.api.vo.AnnotationPropertySupplyVO;
 import com.pig4cloud.pig.ontology.api.vo.ClassTemplateNodeVO;
 import com.pig4cloud.pig.ontology.api.vo.InheritedViewVO;
 import com.pig4cloud.pig.ontology.api.vo.PropertyTemplateSupplyVO;
 import com.pig4cloud.pig.ontology.api.vo.UnitConvertResultVO;
 import com.pig4cloud.pig.ontology.api.vo.UnitSupplyVO;
+import com.pig4cloud.pig.ontology.service.AnnotationPropertyService;
 import com.pig4cloud.pig.ontology.service.ClassTemplateService;
 import com.pig4cloud.pig.ontology.service.PropertyTemplateService;
 import com.pig4cloud.pig.ontology.service.UnitConversionService;
@@ -70,6 +72,8 @@ public class SupplyController {
 	private final UnitService unitService;
 
 	private final UnitConversionService unitConversionService;
+
+	private final AnnotationPropertyService annotationPropertyService;
 
 	@GetMapping("/property-templates")
 	@Operation(summary = "属性模板供给", description = "按 kind/category 拉取，默认排除弃用")
@@ -131,6 +135,14 @@ public class SupplyController {
 	public R<UnitConvertResultVO> supplyConvert(@RequestParam BigDecimal value, @RequestParam String fromIri,
 			@RequestParam String toIri) {
 		return R.ok(unitConversionService.convert(value, fromIri, toIri));
+	}
+
+	@GetMapping("/annotation-properties")
+	@Operation(summary = "注释属性供给", description = "全量注册表，支持 appliesTo 过滤（10.5，AC-4.3/5.5）")
+	@HasPermission("ont_supply_view")
+	public R<List<AnnotationPropertySupplyVO>> supplyAnnotationProperties(
+			@RequestParam(required = false) String appliesTo) {
+		return R.ok(annotationPropertyService.supplyList(appliesTo));
 	}
 
 }
