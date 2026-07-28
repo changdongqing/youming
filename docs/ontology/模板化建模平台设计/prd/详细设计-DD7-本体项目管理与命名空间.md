@@ -4,11 +4,13 @@
 |---|---|
 | 文档名称 | 本体项目管理与命名空间 详细设计 |
 | 里程碑 | M5（FR-10） |
-| 上游 PRD | 《本体建模功能产品需求文档.md》v1.0（FR-10 / AC-10.1~10.5 / 9.1/9.2 / 10.1 / 13.1/13.2 / 十四节 M5） |
+| 上游 PRD | 《本体建模功能产品需求文档.md》v1.0（FR-10 / AC-10.1~10.5 / 5.2 / 10.1 / 第十三节 13.1/13.2 / 第十六节 M5） |
 | 设计计划 | 《本体建模功能详细设计计划.md》DD7（M5） |
 | 前置依赖 | 治理域 DD1–DD6 已全部落地（pig-ontology-biz 模块就绪、pig-gateway 路由 `Path=/admin/ont/**` 就绪、Flyway V1–V11 已应用） |
 | 编写日期 | 2026-07-28 |
-| 文档状态 | 待评审 |
+| 文档状态 | 评审通过（附优化项已合入），进入实现 |
+
+> **引用条目说明**（评审修订）：本 PRD 功能需求从 FR-10 起（无 FR-9，故无 AC-9.1/9.2）；"13.1/13.2"指**第十三节权限与菜单设计**（非 FR-13，FR-13 是对象属性建模）；M5 里程碑定义在**第十六节**（第十四节为 DoD 验收汇总）。序列化策略 A/B 决策依据为 **5.2 关键约定**。
 
 ---
 
@@ -31,14 +33,17 @@
 | 序列化策略字段预留（默认 B，A 禁用）（FR-10.3） | 序列化实现（DD10/FR-15） |
 | 项目状态管理 draft/active/archived（FR-10.4） | 画布（DD11/FR-17） |
 | 项目列表分页查询（FR-10.5） | 个体实例（M10/DD12，Out of Scope） |
+| 删除项目时**级联软删项目下前缀**（`ont_model_prefix`） | **类实体关联校验**（DD8 建 `ont_model_class` 后实现） |
 | V12 建表 + 11000/11100 段菜单种子 | 方案 A 序列化切换（v1 禁用，仅字段预留） |
+
+> **删除校验范围说明**（评审修订 P-1）：PRD AC-10.1 要求"删除时校验关联类实体"。但 `ont_model_class` 由 DD8 创建，本 DD 阶段不存在，故本 DD 的删除校验**只覆盖已建表的前缀子表**（级联软删，避免前缀孤儿）；**类实体校验整体移交 DD8**。本 DD 不在代码中预埋"引用未存在 Mapper 的注释"，避免实现者照抄产生编译/语义混淆。详见 4.5 removeProject。
 
 ### 1.3 验收映射（M5 DoD）
 
 | PRD AC | 本 DD 实现点 |
 |---|---|
-| AC-10.1 项目 CRUD + 删除校验关联类实体 | 4.3 ModelProjectController + 4.5 ModelProjectServiceImpl（删除时查 ont_model_class，DD8 建表后生效；v1 查表不存在则放行） |
-| AC-10.2 前缀 CRUD + NCName 校验 + 同项目唯一 | 4.6 ModelPrefixController + 4.7 ModelPrefixServiceImpl + 6.1 正则校验 |
+| AC-10.1 项目 CRUD + 删除校验关联类实体 | 4.3 ModelProjectController + 4.5 ModelProjectServiceImpl（删除时**级联软删项目下前缀** `ont_model_prefix`；**类实体校验移交 DD8**——DD8 建 `ont_model_class` 后在该表删除链路或项目删除链路补校验，本 DD 不预埋引用未存在 Mapper 的注释代码） |
+| AC-10.2 前缀 CRUD + NCName 校验 + 同项目唯一 | 4.4 ModelPrefixController + 4.6 ModelPrefixServiceImpl + 6.1 正则校验 |
 | AC-10.3 默认策略 B + 方案 A 禁用切换 | 4.5 ModelProjectServiceImpl.saveProject（强制 strategy='B'） |
 | AC-10.4 状态管理 archived 只读 | 4.5 ModelProjectServiceImpl（archived 拦截写操作） |
 | AC-10.5 分页查询 + 名称搜索 + 状态过滤 | 4.3 ModelProjectController.page + 4.5 ServiceImpl.page |
@@ -200,7 +205,13 @@ INSERT INTO sys_menu VALUES (11104, '项目查看', 'ont_project_view',   NULL, 
 
 ## 四、后端设计
 
-> 包路径 `com.pig4cloud.pig.ontology.modeling.*`，在 pig-ontology-biz 内新增 modeling 子包。Controller 路径带 `/ont/model` 前缀（经 context-path /admin 或网关后对外为 `/admin/ont/model/**`，复用 pig-gateway 已有路由 `Path=/admin/ont/**`）。
+> 包路径 `com.pig4cloud.pig.ontology.modeling.*`，在 pig-ontology-biz 内新增 modeling 子包。Controller 路径带 `/ont/model` 前缀（经 context-path /admin 或网关后对外为 `/admin/ont/model/**`，复用 pig-gateway 已有路由 `Path=/admin/ont/**`，StripPrefix=1 剥去 `/admin`）。
+
+> **包结构决策说明**（评审补充 P-2）：治理域（DD1–DD6）采用**扁平包**——Controller/Service/Mapper 直接置于 `com.pig4cloud.pig.ontology.{controller,service,mapper}`，Entity 置于 `api.entity`（共 8 Entity + 10 Controller，体量小）。**建模域（DD7–DD11）改用 `modeling` 子包**（PRD 3.1 / 设计计划 3.1 明确决策），因建模域预计新增 30+ 类，子包隔离更清晰。两者差异：
+> - 治理域：`com.pig4cloud.pig.ontology.controller.*` + `api.entity.*`（扁平）
+> - 建模域：`com.pig4cloud.pig.ontology.modeling.{controller,service,mapper,entity,dto,vo}.*`（子包，Entity 放 `modeling.entity` 而非 `api.entity`，使 modeling 自包含）
+>
+> 物理模块仍是 `pig-ontology-biz` 单模块（S-4，不新拆 api/biz 子模块）。此为有意演进，非笔误。
 
 ### 4.1 Entity - ModelProject
 
@@ -469,7 +480,7 @@ public class ModelPrefixController {
 
 	private final ModelPrefixService modelPrefixService;
 
-	@GetMapping("/{projectId}/prefix/list")
+	@GetMapping("/{projectId}/prefixes")
 	@Operation(summary = "项目前缀列表", description = "全量列表（AC-10.2）")
 	@HasPermission("ont_project_view")
 	public R<List<ModelPrefix>> list(@PathVariable Long projectId) {
@@ -519,7 +530,9 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.pig4cloud.pig.common.core.util.R;
+import com.pig4cloud.pig.ontology.modeling.entity.ModelPrefix;
 import com.pig4cloud.pig.ontology.modeling.entity.ModelProject;
+import com.pig4cloud.pig.ontology.modeling.mapper.ModelPrefixMapper;
 import com.pig4cloud.pig.ontology.modeling.mapper.ModelProjectMapper;
 import com.pig4cloud.pig.ontology.modeling.service.ModelProjectService;
 import lombok.AllArgsConstructor;
@@ -543,6 +556,8 @@ public class ModelProjectServiceImpl extends ServiceImpl<ModelProjectMapper, Mod
 	private static final Set<String> VALID_STATUS = Set.of("draft", "active", "archived");
 
 	private static final Set<String> VALID_FORMAT = Set.of("TTL", "OWL_XML");
+
+	private final ModelPrefixMapper modelPrefixMapper;
 
 	@Override
 	public IPage<ModelProject> page(Page page, ModelProject project) {
@@ -625,13 +640,19 @@ public class ModelProjectServiceImpl extends ServiceImpl<ModelProjectMapper, Mod
 	@Override
 	@Transactional(rollbackFor = Exception.class)
 	public R removeProject(Long id) {
-		// 删除校验：是否有关联类实体（AC-10.1）
-		// DD8 建表 ont_model_class 后，此处查询生效；v1 阶段表不存在则放行
-		// long classCount = modelClassMapper.selectCount(Wrappers.<ModelClass>lambdaQuery()
-		// 	.eq(ModelClass::getProjectId, id));
-		// if (classCount > 0) {
-		// 	return R.failed("项目下存在 " + classCount + " 个类实体，无法删除");
-		// }
+		ModelProject existing = getById(id);
+		if (existing == null) {
+			return R.failed("项目不存在");
+		}
+		// 1. 级联软删项目下前缀（前缀是项目从属资源，删项目应一并清理，避免孤儿）
+		//    本 DD 已建 ont_model_prefix，可直接操作
+		modelPrefixMapper.delete(Wrappers.<ModelPrefix>lambdaQuery()
+			.eq(ModelPrefix::getProjectId, id));
+		// 2. 类实体关联校验：移交 DD8
+		//    DD8 建 ont_model_class 后，在 ModelClass 删除链路或此处补充：
+		//    long classCount = modelClassMapper.selectCount(...projectId=id);
+		//    if (classCount > 0) return R.failed("项目下存在 N 个类实体，无法删除");
+		//    本 DD 不预埋引用未存在 Mapper 的代码（避免编译/语义混淆）
 		return R.ok(removeById(id));
 	}
 }
@@ -639,7 +660,7 @@ public class ModelProjectServiceImpl extends ServiceImpl<ModelProjectMapper, Mod
 
 > 范式对齐治理域 `PropertyTemplateServiceImpl`：`baseMapper.selectPage` + `Wrappers.lambdaQuery()` 条件查询 + `@Transactional(rollbackFor=Exception.class)` + `count()` 预查重 + `DuplicateKeyException` 兜底 + 不可改字段锁定（projectCode）。
 
-> **删除校验预留**：`removeProject` 中关联类实体的校验逻辑以注释形式预留，DD8 建表 `ont_model_class` 后取消注释启用。v1 阶段（DD7）表不存在，放行删除（项目容器本身可删）。
+> **删除校验范围**（评审修订 P-1）：`removeProject` 实际做两件事——(1) 级联软删项目下前缀（本 DD 已建表，立即生效）；(2) 类实体关联校验**整体移交 DD8**（DD8 建 `ont_model_class` 后补）。不在本 DD 预埋"查未存在表"的代码或注释，避免实现者照抄。
 
 ### 4.6 ServiceImpl - ModelPrefixServiceImpl
 
@@ -870,7 +891,7 @@ export function delObj(id: string) {
 
 export function listPrefix(projectId: string) {
 	return request({
-		url: '/admin/ont/model/project/' + projectId + '/prefix/list',
+		url: '/admin/ont/model/project/' + projectId + '/prefixes',
 		method: 'get',
 	});
 }
@@ -1132,6 +1153,8 @@ export default {
 | archived 只读 | ServiceImpl `updateProject` 拦截 | AC-10.4 |
 | namespaceBase 补 / | ServiceImpl 末尾检查 | IRI 规范（基址以 / 结尾） |
 | projectCode 不可改 | ServiceImpl `setProjectCode(existing.getProjectCode())` 锁定 | 编码是稳定标识 |
+| 删除级联清理 | ServiceImpl `removeProject` 级联软删 `ont_model_prefix` | 避免前缀孤儿（P-1） |
+| 类实体关联校验 | **移交 DD8**（`ont_model_class` 建表后） | 本 DD 不预埋，AC-10.1 类实体部分由 DD8 兜底 |
 
 ### 6.2 异常
 
@@ -1156,6 +1179,7 @@ export default {
 - 所有接口 `@HasPermission` 鉴权（`ont_project_view` / `ont_project_manage`）。
 - 前端按钮 `v-auth` 指令控制显隐。
 - 前缀接口复用项目权限（前缀是项目的子资源，不单独设权限点）。
+- **菜单可见性与角色授权**（评审补充 P-3）：V12 仅写入 `sys_menu` 菜单/按钮种子，**不写 `sys_role_menu`**（与治理域 V5~V11 一致）。pig 框架对 `ROLE_ADMIN` 角色有"全部菜单"兜底，故 **admin 登录即可见"本体建模"目录及子菜单**；非 admin 角色（如建模师）需在「角色管理」页手动分配 `ont_project_view`/`ont_project_manage` 权限点后方可见/可操作。此为隐性约定，无需额外种子脚本。
 
 ### 6.6 国际化
 
@@ -1174,14 +1198,16 @@ export default {
 | 菜单可见性 | admin 登录后侧边栏出现"本体建模"一级目录 + "本体项目管理"子菜单 |
 | 覆盖（AC-10.5） | `GET /admin/ont/model/project/page?name=fire&status=active` 返回分页结构；名称模糊 + 状态精确过滤 |
 | 覆盖（AC-10.1） | `POST /admin/ont/model/project` 新增成功；`GET /{id}` 返回详情；`PUT /{id}` 编辑成功；`DELETE /{id}` 软删成功 |
+| 删除级联（AC-10.1） | 项目下有前缀时 `DELETE /{id}`，项目软删**同时**前缀被级联软删（`SELECT count(*) FROM ont_model_prefix WHERE project_id=? AND del_flag='0'` 归零）；类实体校验移交 DD8 |
 | 唯一约束（AC-10.1） | 重复 projectCode 新增返回 `R.failed("项目编码 'xxx' 已存在")`；软删后复用同 code 也被 DB 约束拦截 |
 | 策略强制（AC-10.3） | 传入 `serializationStrategy='A'` 保存后，DB 中仍为 `'B'`；`GET /{id}` 返回 strategy='B' |
 | 状态校验（AC-10.4） | archived 项目调 `PUT /{id}` 返回 `R.failed("已归档项目不可编辑")`；传入非法状态 `xyz` 返回 `R.failed("无效的项目状态：xyz")` |
 | NCName（AC-10.2） | 前缀 `1abc`（数字开头）返回 `R.failed("前缀名 '1abc' 不符合 NCName 规范")`；前缀 `ex` 通过 |
 | 前缀唯一（AC-10.2） | 同项目重复前缀返回 `R.failed("前缀名 'ex' 在本项目内已存在")`；不同项目可同名前缀 |
 | namespaceBase 补 / | 传入 `http://ym/onto/fire` 保存后 DB 中为 `http://ym/onto/fire/` |
-| 前缀列表（AC-10.2） | `GET /{projectId}/prefix/list` 返回全量前缀，默认前缀排前 |
+| 前缀列表（AC-10.2） | `GET /{projectId}/prefixes` 返回全量前缀，默认前缀排前 |
 | 权限 | 无 `ont_project_view` 权限调 page 返回 403；无 `ont_project_manage` 调 POST/PUT/DELETE 返回 403 |
+| 菜单授权（P-3） | admin 登录即可见"本体建模"目录 + "本体项目管理"菜单（框架 ROLE_ADMIN 兜底）；非 admin 角色分配 `ont_project_view` 后可见 |
 | 双形态 | pig-boot 单体 + 微服务 gateway 两种形态均验证 page/save/prefix 接口 |
 
 ---
@@ -1190,9 +1216,10 @@ export default {
 
 | 风险 | 缓解 |
 |---|---|
-| DD8 建表前 removeProject 的关联校验不生效 | 以注释预留，DD8 建表后取消注释；v1 阶段项目容器本身可删（无类实体） |
+| DD8 建表前类实体关联校验不生效（AC-10.1 部分） | **类实体校验整体移交 DD8**（建 `ont_model_class` 后补）；本 DD 删除时已**级联软删前缀**子表避免孤儿，项目容器本身可删。不在本 DD 预埋查未存在表的代码 |
 | 前缀 NCName 正则过于宽松（允许句点） | NCName 1.1 规范允许句点；若需严格可后续收紧，v1 兼容 Turtle 前缀规范 |
 | 建模域菜单与治理域菜单平级可能混淆 | 11000 段独立目录"本体建模"，与治理域 10000"本体治理"分离；权限标识 `ont_project_*` 与治理域 `ont_*` 命名区分 |
+| 菜单种子未做 sys_role_menu 授权 | 与治理域一致（不写 role_menu）；admin 由框架 ROLE_ADMIN 兜底可见，非 admin 角色手动分配（P-3） |
 | namespaceBase 格式不规范（如缺协议头） | v1 仅校验末尾补 /；后续可加 http(s):// 前缀校验 |
 
 ---
@@ -1236,7 +1263,7 @@ export default {
 | 接口路径 | /admin/ont/model/project（PRD 10.1） | @RequestMapping("/ont/model/project") | ✓ |
 | 表前缀 | ont_model_（PRD 9 / 设计计划 3.2） | ont_model_project / ont_model_prefix | ✓ |
 | 治理域消费 | 不修改治理域表/接口/代码（PRD NFR-C3 / R-23） | 本 DD 不引用治理域任何代码/表 | ✓ |
-| 删除校验 | 删除时校验关联类实体（PRD FR-10.1） | 注释预留，DD8 建表后启用 | ✓（预留） |
+| 删除校验 | 删除时校验关联类实体（PRD FR-10.1） | 本 DD 级联软删前缀；类实体校验移交 DD8 | ✓（前缀本 DD / 类实体 DD8） |
 
 ---
 
