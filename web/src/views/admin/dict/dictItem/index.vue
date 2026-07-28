@@ -33,7 +33,7 @@
 			<el-table-column prop="sortOrder" :label="$t('dictItem.sortOrder')" show-overflow-tooltip></el-table-column>
 			<el-table-column prop="listClass" :label="$t('dictItem.listClass')" width="120">
 				<template #default="scope">
-					<el-tag v-if="scope.row.listClass" :type="scope.row.listClass === 'primary' ? '' : scope.row.listClass" size="small">
+					<el-tag v-if="scope.row.listClass" :type="scope.row.listClass" size="small">
 						{{ scope.row.label }}
 					</el-tag>
 					<span v-else>-</span>

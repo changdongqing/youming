@@ -41,7 +41,7 @@
 				<el-table-column :label="t('propertyTemplate.templateCode')" prop="templateCode" show-overflow-tooltip />
 				<el-table-column :label="t('propertyTemplate.kind')" prop="kind" width="100">
 					<template #default="scope">
-						<el-tag :type="scope.row.kind === 'datatype' ? '' : 'success'" size="small">
+						<el-tag :type="scope.row.kind === 'datatype' ? 'primary' : 'success'" size="small">
 							{{ scope.row.kind === 'datatype' ? t('propertyTemplate.datatype') : t('propertyTemplate.object') }}
 						</el-tag>
 					</template>
