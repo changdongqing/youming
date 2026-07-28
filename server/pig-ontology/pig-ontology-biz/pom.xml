@@ -92,7 +92,17 @@
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
         </dependency>
+        <!-- RDF/Turtle 解析：Apache Jena（DD6 参考本体库浏览，AC-7.4） -->
+        <dependency>
+            <groupId>org.apache.jena</groupId>
+            <artifactId>jena-arq</artifactId>
+            <version>${jena.version}</version>
+        </dependency>
     </dependencies>
+
+    <properties>
+        <jena.version>5.3.0</jena.version>
+    </properties>
 
     <profiles>
         <!-- 微服务形态：repackage 成可执行 jar -->
