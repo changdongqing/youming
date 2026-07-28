@@ -184,3 +184,30 @@ const handleImportClass = async (iri: string) => {
 // 首次加载 QUDT Tab
 onMounted(() => getQudtList());
 </script>
+
+<style lang="scss" scoped>
+/**
+ * 表格高度自适应：el-tabs/el-tab-pane 默认是普通块级容器，会阻断全局 layout-flex 高度链，
+ * 导致 el-table 拿不到确定高度、行多时不出现滚动条、分页被挤出视口。
+ * 此处补齐 flex 高度链：tabs → content → 激活的 pane 均为 flex 列容器并传递剩余高度，
+ * 使 el-table 靠 flex:1 撑高（超出内部滚动），pagination 固定底部，与其它列表页表现一致。
+ */
+:deep(.el-tabs) {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	overflow: hidden;
+}
+:deep(.el-tabs__header) {
+	flex-shrink: 0;
+}
+:deep(.el-tabs__content) {
+	flex: 1;
+	overflow: hidden;
+}
+:deep(.el-tab-pane) {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+</style>
