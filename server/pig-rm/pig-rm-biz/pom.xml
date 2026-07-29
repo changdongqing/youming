@@ -58,6 +58,11 @@
             <groupId>com.pig4cloud</groupId>
             <artifactId>pig-common-swagger</artifactId>
         </dependency>
+        <!-- Excel 导出：EasyExcel（报表导出用） -->
+        <dependency>
+            <groupId>com.pig4cloud</groupId>
+            <artifactId>pig-common-excel</artifactId>
+        </dependency>
         <!-- 注册中心（微服务形态） -->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
