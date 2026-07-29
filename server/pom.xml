@@ -107,6 +107,7 @@
         <module>pig-common</module>
         <module>pig-visual</module>
         <module>pig-ontology</module>
+        <module>pig-rm</module>
     </modules>
 
     <dependencyManagement>

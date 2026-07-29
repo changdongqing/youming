@@ -60,6 +60,12 @@
             <artifactId>pig-ontology-biz</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--研发管理模块-->
+        <dependency>
+            <groupId>com.pig4cloud</groupId>
+            <artifactId>pig-rm-biz</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!--安全模块-->
         <dependency>
             <groupId>com.pig4cloud</groupId>

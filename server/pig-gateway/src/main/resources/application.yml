@@ -32,6 +32,12 @@ spring:
                 - Path=/admin/ont/**
               metadata:
                 response-timeout: 30000
+            - id: pig-rm
+              uri: lb://pig-rm-biz
+              predicates:
+                - Path=/admin/rm/**
+              metadata:
+                response-timeout: 30000
             - id: pig-upms-biz
               uri: lb://pig-upms-biz
               predicates:
