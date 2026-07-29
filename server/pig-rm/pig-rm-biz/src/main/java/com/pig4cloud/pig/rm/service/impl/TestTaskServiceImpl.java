@@ -37,7 +37,7 @@ import com.pig4cloud.pig.rm.api.entity.TestExecution;
 import com.pig4cloud.pig.rm.api.entity.TestTask;
 import com.pig4cloud.pig.rm.api.vo.TestTaskDetailVO;
 import com.pig4cloud.pig.rm.mapper.BugMapper;
-import com.pig4cloud.pig.rm.mapper.SysUserMapper;
+import com.pig4cloud.pig.rm.mapper.RmUserQueryMapper;
 import com.pig4cloud.pig.rm.mapper.TestExecutionMapper;
 import com.pig4cloud.pig.rm.mapper.TestTaskMapper;
 import com.pig4cloud.pig.rm.service.CodeGeneratorService;
@@ -75,7 +75,7 @@ public class TestTaskServiceImpl extends ServiceImpl<TestTaskMapper, TestTask> i
 
 	private final TestExecutionMapper executionMapper;
 
-	private final SysUserMapper sysUserMapper;
+	private final RmUserQueryMapper rmUserQueryMapper;
 
 	private final DevTaskService devTaskService;
 
@@ -96,7 +96,7 @@ public class TestTaskServiceImpl extends ServiceImpl<TestTaskMapper, TestTask> i
 		save(task);
 
 		// 为测试人员生成待办
-		List<Long> testerIds = sysUserMapper.getUserIdsByRoleCode("rm_tester");
+		List<Long> testerIds = rmUserQueryMapper.getUserIdsByRoleCode("rm_tester");
 		for (Long testerId : testerIds) {
 			todoService.createTodo("TEST", "TEST_TASK", task.getId(),
 					"待测试：" + task.getTaskCode() + "（来自 " + devTask.getTaskCode() + "）",

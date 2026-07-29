@@ -26,13 +26,16 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 /**
- * 系统用户查询 Mapper（审批人解析用，直接查 sys_user/sys_role/sys_user_role/sys_dept）
+ * RM 模块用户/组织查询 Mapper（审批人解析用，直接查 sys_user/sys_role/sys_user_role/sys_dept）
+ * <p>
+ * 注意：此类与 pig-upms 的 {@code com.pig4cloud.pig.admin.mapper.SysUserMapper} 同名，
+ * 单体版 pig-boot 会同时扫描两个包，故重命名为 RmUserQueryMapper 以避免 bean 名冲突。
  *
  * @author youming
  * @date 2026-07-29
  */
 @Mapper
-public interface SysUserMapper {
+public interface RmUserQueryMapper {
 
 	/**
 	 * 按角色编码查询用户ID列表

@@ -37,7 +37,7 @@ import com.pig4cloud.pig.rm.api.entity.Requirement;
 import com.pig4cloud.pig.rm.api.vo.DevTaskDetailVO;
 import com.pig4cloud.pig.rm.mapper.ApprovalRecordMapper;
 import com.pig4cloud.pig.rm.mapper.DevTaskMapper;
-import com.pig4cloud.pig.rm.mapper.SysUserMapper;
+import com.pig4cloud.pig.rm.mapper.RmUserQueryMapper;
 import com.pig4cloud.pig.rm.service.CodeGeneratorService;
 import com.pig4cloud.pig.rm.service.DevTaskService;
 import com.pig4cloud.pig.rm.service.NotifyService;
@@ -75,7 +75,7 @@ public class DevTaskServiceImpl extends ServiceImpl<DevTaskMapper, DevTask> impl
 
 	private final ApprovalRecordMapper approvalRecordMapper;
 
-	private final SysUserMapper sysUserMapper;
+	private final RmUserQueryMapper rmUserQueryMapper;
 
 	private final TodoService todoService;
 
@@ -176,7 +176,7 @@ public class DevTaskServiceImpl extends ServiceImpl<DevTaskMapper, DevTask> impl
 		updateById(task);
 
 		// 生成设计评审待办给领导
-		List<Long> leaderIds = sysUserMapper.getUserIdsByRoleCode("rm_leader");
+		List<Long> leaderIds = rmUserQueryMapper.getUserIdsByRoleCode("rm_leader");
 		for (Long leaderId : leaderIds) {
 			todoService.createTodo("REVIEW", "DEV_TASK", taskId,
 					"待详细设计评审：" + task.getTaskCode(),
@@ -266,7 +266,7 @@ public class DevTaskServiceImpl extends ServiceImpl<DevTaskMapper, DevTask> impl
 		todoService.closeTodo("DEV_TASK", task.getId(), "DEV");
 
 		// 通知测试人员（阶段 1.5 自动生成测试任务单，此处仅通知）
-		List<Long> testerIds = sysUserMapper.getUserIdsByRoleCode("rm_tester");
+		List<Long> testerIds = rmUserQueryMapper.getUserIdsByRoleCode("rm_tester");
 		for (Long testerId : testerIds) {
 			notifyService.notifyUser(testerId, "TEST",
 					"开发任务已提测：" + task.getTaskCode(), "任务：" + task.getTaskName());
@@ -322,7 +322,7 @@ public class DevTaskServiceImpl extends ServiceImpl<DevTaskMapper, DevTask> impl
 				req.setStatus(RequirementStatusEnum.TESTING.name());
 				requirementService.updateById(req);
 				// 通知产品经理质量确认
-				List<Long> approverIds = sysUserMapper.getUserIdsByRoleCode("rm_product_approver");
+				List<Long> approverIds = rmUserQueryMapper.getUserIdsByRoleCode("rm_product_approver");
 				for (Long approverId : approverIds) {
 					notifyService.notifyUser(approverId, "APPROVAL",
 							"需求待质量确认：" + req.getReqCode(),
@@ -361,7 +361,7 @@ public class DevTaskServiceImpl extends ServiceImpl<DevTaskMapper, DevTask> impl
 
 		// 填充负责人名称
 		if (task.getAssigneeId() != null) {
-			vo.setAssigneeName(sysUserMapper.getUserName(task.getAssigneeId()));
+			vo.setAssigneeName(rmUserQueryMapper.getUserName(task.getAssigneeId()));
 		}
 
 		// 填充评审记录

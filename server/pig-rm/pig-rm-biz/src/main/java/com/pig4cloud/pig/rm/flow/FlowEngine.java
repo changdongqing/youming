@@ -22,7 +22,7 @@ package com.pig4cloud.pig.rm.flow;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.pig4cloud.pig.rm.api.entity.FlowNode;
 import com.pig4cloud.pig.rm.mapper.FlowNodeMapper;
-import com.pig4cloud.pig.rm.mapper.SysUserMapper;
+import com.pig4cloud.pig.rm.mapper.RmUserQueryMapper;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -44,7 +44,7 @@ public class FlowEngine {
 
 	private final FlowNodeMapper flowNodeMapper;
 
-	private final SysUserMapper sysUserMapper;
+	private final RmUserQueryMapper rmUserQueryMapper;
 
 	/**
 	 * 获取流程的全部节点（按顺序）
@@ -90,7 +90,7 @@ public class FlowEngine {
 
 		return switch (type) {
 			// 按角色编码查用户
-			case "ROLE" -> ref != null && !ref.isBlank() ? sysUserMapper.getUserIdsByRoleCode(ref) : List.of();
+			case "ROLE" -> ref != null && !ref.isBlank() ? rmUserQueryMapper.getUserIdsByRoleCode(ref) : List.of();
 			// 指定用户
 			case "USER" -> ref != null && !ref.isBlank() ? List.of(Long.parseLong(ref)) : List.of();
 			// 发起人所在部门负责人
@@ -114,7 +114,7 @@ public class FlowEngine {
 		if (deptId == null) {
 			return null;
 		}
-		return sysUserMapper.getDeptLeaderId(deptId);
+		return rmUserQueryMapper.getDeptLeaderId(deptId);
 	}
 
 }

@@ -41,7 +41,7 @@ import com.pig4cloud.pig.rm.api.vo.RequirementStatisticsVO;
 import com.pig4cloud.pig.rm.flow.FlowEngine;
 import com.pig4cloud.pig.rm.mapper.ApprovalRecordMapper;
 import com.pig4cloud.pig.rm.mapper.RequirementMapper;
-import com.pig4cloud.pig.rm.mapper.SysUserMapper;
+import com.pig4cloud.pig.rm.mapper.RmUserQueryMapper;
 import com.pig4cloud.pig.rm.service.CodeGeneratorService;
 import com.pig4cloud.pig.rm.service.NotifyService;
 import com.pig4cloud.pig.rm.service.RequirementService;
@@ -82,7 +82,7 @@ public class RequirementServiceImpl extends ServiceImpl<RequirementMapper, Requi
 
 	private final ApprovalRecordMapper approvalRecordMapper;
 
-	private final SysUserMapper sysUserMapper;
+	private final RmUserQueryMapper rmUserQueryMapper;
 
 	private final TodoService todoService;
 
@@ -169,10 +169,10 @@ public class RequirementServiceImpl extends ServiceImpl<RequirementMapper, Requi
 
 		// 发起人/部门名称
 		if (req.getInitiatorId() != null) {
-			vo.setInitiatorName(sysUserMapper.getUserName(req.getInitiatorId()));
+			vo.setInitiatorName(rmUserQueryMapper.getUserName(req.getInitiatorId()));
 		}
 		if (req.getInitiatorDeptId() != null) {
-			vo.setInitiatorDeptName(sysUserMapper.getDeptName(req.getInitiatorDeptId()));
+			vo.setInitiatorDeptName(rmUserQueryMapper.getDeptName(req.getInitiatorDeptId()));
 		}
 		// devTasks 在阶段 1.4 补充（当前为空列表）
 		vo.setDevTasks(new ArrayList<>());
@@ -530,7 +530,7 @@ public class RequirementServiceImpl extends ServiceImpl<RequirementMapper, Requi
 		String type = node.getApproverType();
 		String ref = node.getApproverRef();
 		return switch (type) {
-			case "ROLE" -> (ref != null && !ref.isBlank()) ? sysUserMapper.getUserIdsByRoleCode(ref) : List.of();
+			case "ROLE" -> (ref != null && !ref.isBlank()) ? rmUserQueryMapper.getUserIdsByRoleCode(ref) : List.of();
 			case "USER" -> (ref != null && !ref.isBlank()) ? List.of(Long.parseLong(ref)) : List.of();
 			case "DEPT_LEADER", "INITIATOR_LEADER" -> {
 				Long deptId = "INITIATOR_LEADER".equals(type) ? initiatorDeptId : Long.parseLong(ref);
