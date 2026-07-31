@@ -108,6 +108,7 @@
         <module>pig-visual</module>
         <module>pig-ontology</module>
         <module>pig-rm</module>
+        <module>pig-sync</module>
     </modules>
 
     <dependencyManagement>

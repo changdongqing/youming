@@ -66,6 +66,12 @@
             <artifactId>pig-rm-biz</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--QwenPaw 同步模块-->
+        <dependency>
+            <groupId>com.pig4cloud</groupId>
+            <artifactId>pig-sync-biz</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!--安全模块-->
         <dependency>
             <groupId>com.pig4cloud</groupId>
