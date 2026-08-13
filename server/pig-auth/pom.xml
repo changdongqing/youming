@@ -111,6 +111,11 @@
                                 <goals>
                                     <goal>repackage</goal>
                                 </goals>
+                                <!-- 保留普通 jar 供 pig-boot 单体版依赖加载 (BOOT-INF/classes 下的类
+                                     无法被其他模块的 classpath 加载), 可执行 fat jar 输出为 *-exec.jar -->
+                                <configuration>
+                                    <classifier>exec</classifier>
+                                </configuration>
                             </execution>
                         </executions>
                     </plugin>

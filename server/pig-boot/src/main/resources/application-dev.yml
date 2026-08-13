@@ -9,10 +9,14 @@ spring:
       password: ${REDIS_PASSWORD:redis}
   # Quartz 属性 (迁移到 PG 后显式声明, 确保 PostgreSQLDelegate 生效, 与 quartz-config.yml 互为兜底)
   quartz:
+    job-store-type: jdbc # 持久化到数据库
+    jdbc:
+      initialize-schema: never # QRTZ_ 表已由 Flyway V3 创建, 不再由 Quartz 自动建表
     properties:
       org:
         quartz:
           jobStore:
+            class: org.springframework.scheduling.quartz.LocalDataSourceJobStore # 数据库存储
             driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
   # Flyway 数据库版本管理 (youming 迁移 PG 后引入, 基线脚本 V1/V2/V3 见 pig-common-data/db/migration)
   flyway:
